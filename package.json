@@ -1,0 +1,41 @@
+{
+  "name": "multi-channel",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "worker": "node src/service/Worker/campaignWorker.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc11",
+    "bcryptjs": "^3.0.3",
+    "bullmq": "^5.76.6",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^7.1.5",
+    "ioredis": "^5.10.1",
+    "joi": "^17.11.0",
+    "jsonwebtoken": "^9.0.3",
+    "moment": "^2.30.1",
+    "mysql2": "^3.22.3",
+    "p-queue": "^7.4.1",
+    "pino": "^10.3.1",
+    "pino-pretty": "^10.3.1",
+    "qrcode": "^1.5.4",
+    "sequelize": "^6.37.8",
+    "sqlite3": "^6.0.1",
+    "uuid": "^14.0.0",
+    "whatsapp-web.js": "^1.34.7",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
