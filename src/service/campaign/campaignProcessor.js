@@ -50,7 +50,8 @@ const processCampaign = async (campaignId, messageTemplate) => {
         }
 
         const sessions = getAllSessions();
-        const activeChannels = Object.keys(sessions).filter((key) => sessions[key]?.connected);
+        
+        const activeChannels = sessions.filter(({connected})=> connected).map(({name})=> name);
 
         if (activeChannels.length === 0) {
             logger.error({ campaignId }, 'No active WhatsApp sessions available');
@@ -68,7 +69,11 @@ const processCampaign = async (campaignId, messageTemplate) => {
         const queuePromises = pendingContacts.map((contact) => {
             return messageQueue.add(async () => {
                 try {
+                    
                     const selectedChannel = await rotationService.getNextChannel(activeChannels);
+                    if(selectedChannel == ( null || 0) ){
+                        throw new error ("Selected channel is not present")
+                    }
 
                     const response = await sendMessage(
                         selectedChannel,

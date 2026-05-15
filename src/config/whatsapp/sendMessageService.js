@@ -12,7 +12,8 @@ const sendMessage = async (sessionName, mobile, message) => {
         if (message.length > 4096) {
             throw new Error('Message too long (max 4096 characters)');
         }
-
+        
+        console.log(sessionName);
         const session = getSession(sessionName);
 
         if (!session) {

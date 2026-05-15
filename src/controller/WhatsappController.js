@@ -1,4 +1,4 @@
-const { createSession, getSession, getAllSessions, closeAllSessions } = require("../config/whatsapp/sessionManager");
+const { createSession, getSession, getAllSessions, closeAllSessions, deleteSession } = require("../config/whatsapp/sessionManager");
 const { createLogger } = require("../logger");
 const { asyncHandler, AppError } = require("../errorMiddleware");
 
@@ -87,4 +87,40 @@ const getSessions = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { connectWhatsApp, getSessions };
+const logoutWhatsApp = asyncHandler(async (req, res) => {
+    const { sessionName } = req.validatedData.body;
+
+    try {
+        const session = getSession(sessionName);
+        
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                message: 'Session not found',
+                sessionName,
+                code: 'SESSION_002'
+            });
+        }
+
+        await deleteSession(sessionName);
+
+        logger.info(
+            { sessionName, userId: req.user?.id },
+            'Session logout successful'
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'Session logged out successfully',
+            sessionName
+        });
+    } catch (error) {
+        logger.error(
+            { error: error.message, sessionName, userId: req.user?.id },
+            'Failed to logout WhatsApp session'
+        );
+        throw error;
+    }
+});
+
+module.exports = { connectWhatsApp, getSessions, logoutWhatsApp };

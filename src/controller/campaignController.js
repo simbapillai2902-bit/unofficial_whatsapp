@@ -25,8 +25,8 @@ const addCampaignContact = asyncHandler(async (req, res) => {
 
             insertPromises.push(
                 dbConnection.query(
-                    `INSERT INTO campaign_queue (campaign_id, user_id, mobile, status, created_at) 
-                     VALUES ${batch.map(() => '(?, ?, ?, ?, NOW())').join(',')}`,
+                    `INSERT INTO campaign_queue (campaign_id, user_id, mobile, created_at) 
+                     VALUES ${batch.map(() => '(?, ?, ?, NOW())').join(',')}`,
                     values.flat()
                 )
             );

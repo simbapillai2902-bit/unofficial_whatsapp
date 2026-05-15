@@ -1,6 +1,6 @@
 const express = require("express");
 const WhatsappController = require("../controller/WhatsappController.js");
-const { validateRequest, connectWhatsAppSchema } = require("../validationMiddleware");
+const { validateRequest, connectWhatsAppSchema, logoutWhatsAppSchema } = require("../validationMiddleware");
 const router = express.Router();
 
 router.post(
@@ -10,5 +10,11 @@ router.post(
 );
 
 router.get('/sessions', WhatsappController.getSessions);
+
+router.post(
+    '/logout',
+    validateRequest(logoutWhatsAppSchema),
+    WhatsappController.logoutWhatsApp
+);
 
 module.exports = router;

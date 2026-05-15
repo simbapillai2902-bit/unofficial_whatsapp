@@ -1,0 +1,221 @@
+{
+  "info": {
+    "_postman_id": "multi-channel-api-collection",
+    "name": "Multi-Channel API Collection",
+    "description": "Complete API documentation for multi-channel WhatsApp & Campaign messaging platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health & Status",
+      "item": [
+        {
+          "name": "Server Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5000/health",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["health"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Server Readiness Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5000/ready",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["ready"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "WhatsApp APIs",
+      "item": [
+        {
+          "name": "Connect WhatsApp Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionName\": \"mysession\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/whatsapp/connect",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "whatsapp", "connect"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5000/api/whatsapp/sessions",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "whatsapp", "sessions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout WhatsApp Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionName\": \"mysession\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/whatsapp/logout",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "whatsapp", "logout"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Campaign APIs",
+      "item": [
+        {
+          "name": "Add Campaign Contacts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campaign_id\": 123,\n  \"user_id\": 456,\n  \"contacts\": [\n    \"9876543210\",\n    \"9876543211\",\n    \"9876543212\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/campaign/add-contacts",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "campaign", "add-contacts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Start Campaign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageTemplate\": \"Hello {{name}}, your order {{orderId}} is confirmed. Thank you!\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/campaign/start/123",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "campaign", "start", "123"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Campaign Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5000/api/campaign/CAMP123456/status",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "campaign", "CAMP123456", "status"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Job Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5000/api/campaign/job/JOB_123456/status",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "campaign", "job", "JOB_123456", "status"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
