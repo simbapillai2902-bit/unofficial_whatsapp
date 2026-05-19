@@ -21,11 +21,11 @@ const addCampaignContact = asyncHandler(async (req, res) => {
 
         for (let i = 0; i < contacts.length; i += batchSize) {
             const batch = contacts.slice(i, i + batchSize);
-            const values = batch.map(mobile => [campaign_id, user_id, mobile]);
+            const values = batch.map(phoneNumber => [campaign_id, user_id, phoneNumber]);
 
             insertPromises.push(
                 dbConnection.query(
-                    `INSERT INTO campaign_queue (campaign_id, user_id, mobile, created_at) 
+                    `INSERT INTO campaign_queue (campaign_id, user_id, phone_number, created_at) 
                      VALUES ${batch.map(() => '(?, ?, ?, NOW())').join(',')}`,
                     values.flat()
                 )

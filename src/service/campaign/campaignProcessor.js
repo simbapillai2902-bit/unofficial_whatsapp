@@ -77,7 +77,7 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null) =
 
                     const response = await sendMessage(
                         selectedChannel,
-                        contact.mobile,
+                        contact.phone_number,
                         messageTemplate
                     );
 
@@ -156,11 +156,11 @@ const getCampaignStatus = async (campaignId) => {
     try {
         const [rows] = await dbConnection.query(
             `SELECT 
-                status,
+                queue_status as status,
                 COUNT(*) as count
              FROM campaign_queue
              WHERE campaign_id = ?
-             GROUP BY status`,
+             GROUP BY queue_status`,
             [campaignId]
         );
 
