@@ -27,6 +27,11 @@ router.get(
 );
 
 router.get(
+    '/:campaignId/status',
+    campaignController.getCampaignProgressStatus
+);
+
+router.get(
     '/job/:jobId/status',
     campaignController.getJobStatus
 );
