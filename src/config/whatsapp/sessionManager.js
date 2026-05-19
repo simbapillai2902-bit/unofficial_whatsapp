@@ -1,8 +1,15 @@
-const {
-    default: makeWASocket,
-    useMultiFileAuthState,
-    DisconnectReason
-} = require('@whiskeysockets/baileys');
+// Polyfill Web Crypto API for Node 18
+if (!globalThis.crypto) {
+    globalThis.crypto = require('crypto').webcrypto;
+}
+
+let baileys;
+async function getBaileys() {
+    if (!baileys) {
+        baileys = await import('@whiskeysockets/baileys');
+    }
+    return baileys;
+}
 
 const P = require("pino");
 const qrcode = require("qrcode");
@@ -33,6 +40,7 @@ const createSession = async (sessionName) => {
             }
         }
 
+        const { default: makeWASocket, useMultiFileAuthState } = await getBaileys();
         const { state, saveCreds } = await useMultiFileAuthState(`session/${sessionName}`);
 
         const sock = makeWASocket({
@@ -73,6 +81,7 @@ const createSession = async (sessionName) => {
             }
 
             if (connection === 'close') {
+                const { DisconnectReason } = await getBaileys();
                 const shouldReconnect =
                     lastDisconnect?.error?.output?.statusCode !==
                     DisconnectReason.loggedOut;
