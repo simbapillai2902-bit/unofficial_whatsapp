@@ -60,43 +60,65 @@ const addCampaignContact = asyncHandler(async (req, res) => {
 });
 
 const startCampaign = asyncHandler(async (req, res) => {
-    const { messageTemplate } = req.validatedData.body;
+    const { messageTemplate, templateId } = req.validatedData.body;
     const { campaignId } = req.validatedData.params;
 
     try {
+        let finalMessage = messageTemplate;
+
+        // If templateId provided, fetch template from database
+        if (templateId) {
+            const [templates] = await dbConnection.query(
+                `SELECT template_content FROM message_templates WHERE id = ? AND is_active = 1`,
+                [templateId]
+            );
+
+            if (templates.length === 0) {
+                throw new AppError('Template not found or inactive', 404, 'TEMPLATE_001');
+            }
+
+            finalMessage = templates[0].template_content;
+        }
+
+        if (!finalMessage) {
+            throw new AppError('Either messageTemplate or valid templateId must be provided', 400, 'CAMPAIGN_003');
+        }
+
         logger.info(
-            { campaignId, userId: req.user?.id },
+            { campaignId, userId: req.user?.id, templateId, hasTemplate: !!templateId },
             'Starting campaign'
         );
 
         // Check if campaign exists and get count
         const [campaign] = await dbConnection.query(
-            `SELECT COUNT(*) as count FROM campaign_queue WHERE campaign_id = ? AND status = 'pending'`,
+            `SELECT COUNT(*) as count FROM campaign_queue WHERE campaign_id = ? AND queue_status = 'pending'`,
             [campaignId]
         );
+        console.log("Here is the campaign data:", campaign);
 
         if (campaign[0].count === 0) {
             throw new AppError('No pending contacts for this campaign', 404, 'CAMPAIGN_002');
         }
 
         // Start campaign processing
-        await processCampaign(campaignId, messageTemplate);
+        await processCampaign(campaignId, finalMessage, templateId);
 
         logger.info(
-            { campaignId, contactCount: campaign[0].count },
+            { campaignId, contactCount: campaign[0].count, templateId },
             'Campaign processing started'
         );
 
         res.status(202).json({
             success: true,
-            message: 'Campaign started',
+            message: templateId ? 'Campaign started with template' : 'Campaign started',
             campaignId,
+            templateId: templateId || null,
             contactCount: campaign[0].count,
             statusCheckUrl: `/api/campaign/${campaignId}/status`
         });
     } catch (error) {
         logger.error(
-            { error: error.message, campaignId, userId: req.user?.id },
+            { error: error.message, campaignId, userId: req.user?.id, templateId },
             'Failed to start campaign'
         );
         throw error;

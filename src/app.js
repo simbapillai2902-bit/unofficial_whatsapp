@@ -5,6 +5,7 @@ const requestIdMiddleware = require('./requestIdMiddleware');
 const { errorHandler } = require('./errorMiddleware');
 const whatsappRoutes = require('./router/whatsappRoutes.js');
 const campaignRoutes = require('./router/campaignRoutes.js');
+const templateRoutes = require('./router/templateRoutes.js');
 const healthRoutes = require('./router/healthRoutes.js');
 
 const logger = createLogger('app');
@@ -53,6 +54,7 @@ app.use((req, res, next) => {
 // API Routes
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/campaign', campaignRoutes);
+app.use('/api/campaign', templateRoutes);
 
 // 404 handler
 app.use((req, res) => {

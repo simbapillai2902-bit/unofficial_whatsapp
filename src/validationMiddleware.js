@@ -4,9 +4,12 @@ const { createLogger } = require('./logger.js');
 const logger = createLogger('validation-middleware');
 
 const validateRequest = (schema) => {
-    return (req, res, next) => {
+
+    return async (req, res, next) => {
+
         try {
-            const { error, value } = schema.validate(
+
+            const value = await schema.validateAsync(
                 {
                     body: req.body,
                     params: req.params,
@@ -18,7 +21,14 @@ const validateRequest = (schema) => {
                 }
             );
 
-            if (error) {
+            req.validatedData = value;
+
+            return next();
+
+        } catch (error) {
+
+            if (error.details) {
+
                 const details = error.details.map(d => ({
                     field: d.path.join('.'),
                     message: d.message
@@ -35,28 +45,31 @@ const validateRequest = (schema) => {
                     code: 'VALIDATION_001',
                     details
                 });
+
             }
 
-            req.validatedData = value;
-            next();
-        } catch (err) {
-            logger.error({ error: err.message }, 'Validation middleware error');
-            res.status(500).json({
+            logger.error(
+                { error: error.message },
+                'Validation middleware error'
+            );
+
+            return res.status(500).json({
                 success: false,
-                error: 'Validation error',
+                error: error.message,
                 code: 'VALIDATION_002'
             });
+
         }
+
     };
+
 };
 
 // Campaign Validation Schemas
 const addCampaignContactSchema = Joi.object({
     body: Joi.object({
-        campaign_id: Joi.string().pattern(/^camp_\d+$/).required().messages({
-            'string.base': 'campaign_id must be a string',
-            'string.empty': 'campaign_id cannot be empty',
-            'string.pattern.base': 'campaign_id format must be like camp_001',
+        campaign_id: Joi.number().integer().required().messages({
+            'number.base': 'campaign_id must be a number',
             'any.required': 'campaign_id is required'
         }),
         user_id: Joi.number().integer().required().messages({
@@ -82,19 +95,30 @@ const addCampaignContactSchema = Joi.object({
 
 const startCampaignSchema = Joi.object({
     body: Joi.object({
-        messageTemplate: Joi.string().min(1).max(4096).required().messages({
+        messageTemplate: Joi.string().min(1).max(4096).optional().messages({
             'string.base': 'messageTemplate must be a string',
             'string.empty': 'messageTemplate cannot be empty',
             'string.min': 'messageTemplate must contain at least 1 character',
-            'string.max': 'Message too long (max 4096 characters)',
-            'any.required': 'messageTemplate is required'
+            'string.max': 'Message too long (max 4096 characters)'
+        }),
+        templateId: Joi.number().integer().optional().messages({
+            'number.base': 'templateId must be a number',
+            'number.integer': 'templateId must be an integer'
         })
-    }).unknown(false).required(),
+    })
+        .unknown(false)
+        .required()
+        .custom((value, helpers) => {
+            // Validate that either messageTemplate or templateId is provided
+            if (!value.messageTemplate && !value.templateId) {
+                return helpers.error('any.required');
+            }
+            return value;
+        }, 'either messageTemplate or templateId'),
     params: Joi.object({
-        campaignId: Joi.string().pattern(/^camp_\d+$/).required().messages({
-            'string.base': 'campaignId must be a string',
-            'string.empty': 'campaignId cannot be empty',
-            'string.pattern.base':'campaignId format must be like camp_001',
+        campaignId: Joi.number().integer().required().messages({
+            'number.base': 'campaignId must be a number',
+            'number.integer': 'campaignId must be an integer',
             'any.required': 'campaignId is required'
         })
     }).unknown(false).required()
@@ -133,10 +157,114 @@ const logoutWhatsAppSchema = Joi.object({
     }).unknown(false).required()
 });
 
+// Template Validation Schemas
+const saveTemplateSchema = Joi.object({
+    body: Joi.object({
+        user_id: Joi.number().integer().required().messages({
+            'number.base': 'user_id must be a number',
+            'any.required': 'user_id is required'
+        }),
+        template_name: Joi.string().min(1).max(255).required().messages({
+            'string.base': 'template_name must be a string',
+            'string.empty': 'template_name cannot be empty',
+            'string.max': 'template_name must not exceed 255 characters',
+            'any.required': 'template_name is required'
+        }),
+        template_type: Joi.string()
+            .valid('plainText', 'buttonMessage', 'linkMenu', 'actionMenu', 'infoCard', 'productCard', 'orderUpdate', 'custom', 'simpleMenu', 'boxMenu')
+            .required()
+            .messages({
+                'string.base': 'template_type must be a string',
+                'any.only': 'template_type must be one of: plainText, buttonMessage, linkMenu, actionMenu, infoCard, productCard, orderUpdate, custom, simpleMenu, boxMenu',
+                'any.required': 'template_type is required'
+            }),
+        template_content: Joi.string().min(1).max(4096).required().messages({
+            'string.base': 'template_content must be a string',
+            'string.empty': 'template_content cannot be empty',
+            'string.max': 'template_content must not exceed 4096 characters',
+            'any.required': 'template_content is required'
+        }),
+        variables: Joi.array().items(Joi.string()).optional().messages({
+            'array.base': 'variables must be an array'
+        }),
+        preview_text: Joi.string().max(500).optional().messages({
+            'string.max': 'preview_text must not exceed 500 characters'
+        }),
+        template_data: Joi.object().optional().messages({
+            'object.base': 'template_data must be an object'
+        })
+    }).unknown(false).required()
+});
+
+const updateTemplateSchema = Joi.object({
+    body: Joi.object({
+        user_id: Joi.number().integer().required().messages({
+            'number.base': 'user_id must be a number',
+            'any.required': 'user_id is required'
+        }),
+        template_name: Joi.string().min(1).max(255).required().messages({
+            'string.base': 'template_name must be a string',
+            'string.empty': 'template_name cannot be empty',
+            'string.max': 'template_name must not exceed 255 characters',
+            'any.required': 'template_name is required'
+        }),
+        template_type: Joi.string()
+            .valid('plainText', 'buttonMessage', 'linkMenu', 'actionMenu', 'infoCard', 'productCard', 'orderUpdate', 'custom', 'simpleMenu', 'boxMenu')
+            .required()
+            .messages({
+                'string.base': 'template_type must be a string',
+                'any.only': 'template_type must be one of: plainText, buttonMessage, linkMenu, actionMenu, infoCard, productCard, orderUpdate, custom, simpleMenu, boxMenu',
+                'any.required': 'template_type is required'
+            }),
+        template_content: Joi.string().min(1).max(4096).required().messages({
+            'string.base': 'template_content must be a string',
+            'string.empty': 'template_content cannot be empty',
+            'string.max': 'template_content must not exceed 4096 characters',
+            'any.required': 'template_content is required'
+        }),
+        variables: Joi.array().items(Joi.string()).optional().messages({
+            'array.base': 'variables must be an array'
+        }),
+        preview_text: Joi.string().max(500).optional().messages({
+            'string.max': 'preview_text must not exceed 500 characters'
+        }),
+        template_data: Joi.object().optional().messages({
+            'object.base': 'template_data must be an object'
+        }),
+        is_active: Joi.boolean().optional().messages({
+            'boolean.base': 'is_active must be a boolean'
+        })
+    }).unknown(false).required(),
+    params: Joi.object({
+        template_id: Joi.number().integer().required().messages({
+            'number.base': 'template_id must be a number',
+            'any.required': 'template_id is required'
+        })
+    }).unknown(false).required()
+});
+
+const deleteTemplateSchema = Joi.object({
+    body: Joi.object({
+        user_id: Joi.number().integer().required().messages({
+            'number.base': 'user_id must be a number',
+            'any.required': 'user_id is required'
+        })
+    }).unknown(false).required(),
+    params: Joi.object({
+        template_id: Joi.number().integer().required().messages({
+            'number.base': 'template_id must be a number',
+            'any.required': 'template_id is required'
+        })
+    }).unknown(false).required()
+});
+
 module.exports = {
     validateRequest,
     addCampaignContactSchema,
     startCampaignSchema,
     connectWhatsAppSchema,
-    logoutWhatsAppSchema
+    logoutWhatsAppSchema,
+    saveTemplateSchema,
+    updateTemplateSchema,
+    deleteTemplateSchema
 };

@@ -1,43 +1,39 @@
-# API Documentation for Frontend Engineer
+# Multi-Channel WhatsApp Bulk Messaging - Complete API Documentation
 
-**Base URL**: `http://localhost:5000`  
+**Base URL**: `http://localhost:3000/api`  
 **API Version**: 1.0.0  
-**Content-Type**: `application/json`
+**Content-Type**: `application/json`  
+**Authentication**: Not required (Pure API)
 
 ---
 
 ## Table of Contents
 
-1. [Health Check APIs](#health-check-apis)
-2. [WhatsApp APIs](#whatsapp-apis)
-3. [Campaign APIs](#campaign-apis)
-4. [Error Handling](#error-handling)
+1. [Health Check](#health-check)
+2. [WhatsApp Session Management](#whatsapp-session-management)
+3. [Message Template Management](#message-template-management)
+4. [Campaign Management](#campaign-management)
+5. [Error Handling](#error-handling)
+6. [Complete Usage Flow](#complete-usage-flow)
 
 ---
 
-## Health Check APIs
+## Health Check
 
-### 1. Health Check
+### 1.1 Health Check
 Check if the server is running and healthy.
 
 **Endpoint**:
 ```
 GET /health
+GET /api/health
 ```
 
 **Response (200 OK)**:
 ```json
 {
   "success": true,
-  "status": "healthy",
-  "timestamp": "2026-05-15T12:01:06.825+05:30",
-  "uptime": 3456.789,
-  "memory": {
-    "rss": 89456789,
-    "heapTotal": 45678901,
-    "heapUsed": 23456789,
-    "external": 123456
-  }
+  "message": "API is healthy"
 }
 ```
 
@@ -45,8 +41,7 @@ GET /health
 ```json
 {
   "success": false,
-  "status": "unhealthy",
-  "error": "Error message describing the issue"
+  "error": "Service unavailable"
 }
 ```
 

@@ -1,0 +1,525 @@
+{
+  "apiVersion": "1.0.0",
+  "baseUrl": "http://localhost:3000/api",
+  "authentication": "Not required",
+  "contentType": "application/json",
+  "endpoints": {
+    "health": {
+      "name": "Health Check",
+      "method": "GET",
+      "path": "/health",
+      "description": "Verify API is running",
+      "request": {
+        "headers": {},
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "message": "API is healthy"
+        }
+      }
+    },
+    "whatsappConnect": {
+      "name": "Connect WhatsApp",
+      "method": "POST",
+      "path": "/whatsapp/connect",
+      "description": "Initiate WhatsApp connection and get QR code",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "sessionName": "session1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "sessionName": "session1",
+          "qr": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAACWCAMAAAC...",
+          "connected": false,
+          "message": "Scan the QR code"
+        }
+      },
+      "validation": {
+        "sessionName": "Required, pattern: session1, session2, etc."
+      }
+    },
+    "getWhatsappSessions": {
+      "name": "Get All Sessions",
+      "method": "GET",
+      "path": "/whatsapp/sessions",
+      "description": "List all WhatsApp sessions",
+      "request": {
+        "headers": {},
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "data": [
+            {
+              "name": "session1",
+              "connected": true,
+              "messageCount": 42
+            }
+          ],
+          "totalSessions": 1,
+          "activeSessions": 1
+        }
+      }
+    },
+    "whatsappLogout": {
+      "name": "Logout WhatsApp",
+      "method": "POST",
+      "path": "/whatsapp/logout",
+      "description": "Disconnect WhatsApp session",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "sessionName": "session1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "message": "Session logged out successfully",
+          "sessionName": "session1"
+        }
+      }
+    },
+    "saveTemplate": {
+      "name": "Save Template",
+      "method": "POST",
+      "path": "/campaign/templates/save",
+      "description": "Create and save a reusable message template",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "user_id": 1,
+          "template_name": "Welcome Message",
+          "template_type": "plainText",
+          "template_content": "Hello {name}, welcome to our service!",
+          "variables": ["name", "company"],
+          "preview_text": "Hello {{name}}, welcome!",
+          "template_data": {
+            "greeting": "Hello",
+            "emoji": "🎉"
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "success": true,
+          "message": "Template saved successfully",
+          "templateId": 5,
+          "templateName": "Welcome Message",
+          "createdAt": "2024-05-19T12:17:01Z"
+        }
+      },
+      "validation": {
+        "user_id": "Required, integer",
+        "template_name": "Required, string, max 255 chars, unique per user",
+        "template_type": "Required, one of: plainText, buttonMessage, linkMenu, actionMenu, infoCard, productCard, orderUpdate, custom, simpleMenu, boxMenu",
+        "template_content": "Required, string, max 4096 chars",
+        "variables": "Optional, array of strings",
+        "preview_text": "Optional, string, max 500 chars",
+        "template_data": "Optional, JSON object"
+      }
+    },
+    "getTemplatesByUser": {
+      "name": "Get User Templates",
+      "method": "GET",
+      "path": "/campaign/templates/user/:user_id",
+      "description": "Get all templates for a specific user",
+      "request": {
+        "headers": {},
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "data": [
+            {
+              "id": 1,
+              "user_id": 1,
+              "template_name": "Welcome Message",
+              "template_type": "plainText",
+              "template_content": "Hello {name}, welcome!",
+              "variables": ["name"],
+              "is_active": true,
+              "usage_count": 15,
+              "created_at": "2024-05-18T10:00:00Z"
+            }
+          ],
+          "total": 1,
+          "userId": 1
+        }
+      }
+    },
+    "getTemplateById": {
+      "name": "Get Template",
+      "method": "GET",
+      "path": "/campaign/templates/:template_id",
+      "description": "Get specific template details",
+      "request": {
+        "headers": {},
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "data": {
+            "id": 5,
+            "user_id": 1,
+            "template_name": "Welcome Message",
+            "template_type": "plainText",
+            "template_content": "Hello {name}, welcome!",
+            "variables": ["name"],
+            "is_active": true,
+            "usage_count": 15,
+            "created_at": "2024-05-18T10:00:00Z",
+            "preview_text": "Hello {{name}}, welcome!"
+          }
+        }
+      }
+    },
+    "updateTemplate": {
+      "name": "Update Template",
+      "method": "PUT",
+      "path": "/campaign/templates/:template_id",
+      "description": "Update an existing template",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "user_id": 1,
+          "template_name": "Welcome Message v2",
+          "template_type": "plainText",
+          "template_content": "Hello {name}, welcome to updated service!",
+          "variables": ["name"],
+          "is_active": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "message": "Template updated successfully",
+          "templateId": 5,
+          "templateName": "Welcome Message v2",
+          "updatedAt": "2024-05-19T12:20:00Z"
+        }
+      }
+    },
+    "deleteTemplate": {
+      "name": "Delete Template",
+      "method": "DELETE",
+      "path": "/campaign/templates/:template_id",
+      "description": "Delete a template (soft delete)",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "user_id": 1
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "message": "Template deleted successfully",
+          "templateId": 5
+        }
+      }
+    },
+    "addCampaignContacts": {
+      "name": "Add Campaign Contacts",
+      "method": "POST",
+      "path": "/campaign/add-contacts",
+      "description": "Add phone numbers to campaign queue",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "campaign_id": "camp_001",
+          "user_id": 1,
+          "contacts": [
+            "919876543210",
+            "919876543211",
+            "919876543212"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "message": "3 contacts added successfully",
+          "campaignId": "camp_001",
+          "insertedCount": 3
+        }
+      },
+      "validation": {
+        "campaign_id": "Required, pattern: camp_001, camp_002, etc.",
+        "user_id": "Required, integer",
+        "contacts": "Required, array of 1-1000 phone numbers (10-15 digits each)"
+      }
+    },
+    "startCampaignPlainText": {
+      "name": "Start Campaign (Plain Text)",
+      "method": "POST",
+      "path": "/campaign/start/:campaignId",
+      "description": "Launch campaign with plain text message",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "messageTemplate": "Hello! Check out our amazing offers today! 🎉"
+        }
+      },
+      "response": {
+        "status": 202,
+        "body": {
+          "success": true,
+          "message": "Campaign started",
+          "campaignId": "camp_001",
+          "templateId": null,
+          "contactCount": 100,
+          "statusCheckUrl": "/api/campaign/camp_001/status"
+        }
+      },
+      "validation": {
+        "messageTemplate": "String, max 4096 chars, required if templateId not provided"
+      }
+    },
+    "startCampaignTemplate": {
+      "name": "Start Campaign (Template)",
+      "method": "POST",
+      "path": "/campaign/start/:campaignId",
+      "description": "Launch campaign using saved template",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "templateId": 5
+        }
+      },
+      "response": {
+        "status": 202,
+        "body": {
+          "success": true,
+          "message": "Campaign started with template",
+          "campaignId": "camp_001",
+          "templateId": 5,
+          "contactCount": 100,
+          "statusCheckUrl": "/api/campaign/camp_001/status"
+        }
+      },
+      "validation": {
+        "templateId": "Integer, required if messageTemplate not provided"
+      }
+    },
+    "getCampaignStatus": {
+      "name": "Get Campaign Status",
+      "method": "GET",
+      "path": "/campaign/:campaignId/status",
+      "description": "Check campaign progress and delivery status",
+      "request": {
+        "headers": {},
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "data": {
+            "campaignId": "camp_001",
+            "pending": 20,
+            "in_progress": 10,
+            "sent": 50,
+            "delivered": 45,
+            "read": 40,
+            "failed": 5
+          },
+          "completionPercentage": 87.5
+        }
+      }
+    }
+  },
+  "errorCodes": {
+    "VALIDATION_001": {
+      "status": 400,
+      "message": "Request validation failed",
+      "example": {
+        "success": false,
+        "error": "Validation failed",
+        "code": "VALIDATION_001",
+        "details": [
+          {
+            "field": "body.sessionName",
+            "message": "sessionName is required"
+          }
+        ]
+      }
+    },
+    "SESSION_001": {
+      "status": 500,
+      "message": "Failed to create session"
+    },
+    "SESSION_002": {
+      "status": 404,
+      "message": "Session not found"
+    },
+    "CAMPAIGN_001": {
+      "status": 409,
+      "message": "Some contacts already exist"
+    },
+    "CAMPAIGN_002": {
+      "status": 404,
+      "message": "No pending contacts for this campaign"
+    },
+    "CAMPAIGN_003": {
+      "status": 400,
+      "message": "Either messageTemplate or templateId must be provided"
+    },
+    "TEMPLATE_001": {
+      "status": 404,
+      "message": "Template not found or inactive"
+    },
+    "TEMPLATE_002": {
+      "status": 409,
+      "message": "Template with this name already exists"
+    },
+    "TEMPLATE_003": {
+      "status": 403,
+      "message": "Unauthorized - You can only manage your own templates"
+    },
+    "TIMEOUT_001": {
+      "status": 408,
+      "message": "Request timeout"
+    },
+    "NOT_FOUND": {
+      "status": 404,
+      "message": "Endpoint not found"
+    }
+  },
+  "rateLimits": {
+    "concurrency": 5,
+    "messagesPerMinute": 50,
+    "maxContactsPerRequest": 1000,
+    "maxMessageLength": 4096,
+    "requestTimeoutMs": 30000,
+    "shutdownTimeoutMs": 30000
+  },
+  "templateTypes": [
+    "plainText",
+    "buttonMessage",
+    "linkMenu",
+    "actionMenu",
+    "infoCard",
+    "productCard",
+    "orderUpdate",
+    "custom",
+    "simpleMenu",
+    "boxMenu"
+  ],
+  "queueStatuses": [
+    "pending",
+    "in_progress",
+    "sent",
+    "delivered",
+    "read",
+    "failed",
+    "retry",
+    "bounced"
+  ],
+  "campaignStatuses": [
+    "draft",
+    "scheduled",
+    "in_progress",
+    "completed",
+    "paused",
+    "failed"
+  ],
+  "usageFlow": [
+    {
+      "step": 1,
+      "name": "Connect WhatsApp",
+      "endpoint": "POST /whatsapp/connect",
+      "body": {
+        "sessionName": "session1"
+      },
+      "note": "User scans QR code from response"
+    },
+    {
+      "step": 2,
+      "name": "Create Template (Optional)",
+      "endpoint": "POST /campaign/templates/save",
+      "body": {
+        "user_id": 1,
+        "template_name": "Summer Offer",
+        "template_type": "plainText",
+        "template_content": "50% OFF Summer Sale!",
+        "variables": []
+      },
+      "note": "Save templateId for later use"
+    },
+    {
+      "step": 3,
+      "name": "Add Contacts",
+      "endpoint": "POST /campaign/add-contacts",
+      "body": {
+        "campaign_id": "camp_001",
+        "user_id": 1,
+        "contacts": ["919876543210", "919876543211"]
+      },
+      "note": "Add up to 1000 contacts per request"
+    },
+    {
+      "step": 4,
+      "name": "Start Campaign",
+      "endpoint": "POST /campaign/start/camp_001",
+      "body": {
+        "templateId": 5
+      },
+      "alternateBody": {
+        "messageTemplate": "Custom message text"
+      },
+      "note": "Use either templateId or messageTemplate"
+    },
+    {
+      "step": 5,
+      "name": "Monitor Status",
+      "endpoint": "GET /campaign/camp_001/status",
+      "note": "Poll for campaign progress"
+    }
+  ],
+  "notes": {
+    "authentication": "No authentication required",
+    "timestamps": "All in UTC",
+    "phoneFormat": "International format (country code + number)",
+    "variables": "Use {variableName} syntax in templates",
+    "duplicates": "Campaigns are idempotent - no duplicate messages per contact",
+    "templateTracking": "Template usage automatically tracked",
+    "multipleSessions": "Multiple WhatsApp sessions supported",
+    "retries": "Failed messages retry up to 3 times automatically"
+  }
+}

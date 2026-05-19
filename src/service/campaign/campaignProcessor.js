@@ -14,7 +14,7 @@ const messageQueue = new PQueue({
     intervalCap: parseInt(process.env.CAMPAIGN_RATE_LIMIT_PER_MINUTE) || 50
 });
 
-const processCampaign = async (campaignId, messageTemplate) => {
+const processCampaign = async (campaignId, messageTemplate, templateId = null) => {
     const batchSize = parseInt(process.env.CAMPAIGN_BATCH_SIZE) || 1000;
     let processedCount = 0;
     let failedCount = 0;
@@ -22,19 +22,19 @@ const processCampaign = async (campaignId, messageTemplate) => {
 
     try {
         logger.info(
-            { campaignId, messageTemplate: messageTemplate.substring(0, 50) },
+            { campaignId, messageTemplate: messageTemplate.substring(0, 50), templateId },
             'Starting campaign processing'
         );
 
         // Update campaign status to in-progress
         await dbConnection.query(
-            `UPDATE campaign_queue SET status = 'in_progress' WHERE campaign_id = ? AND status = 'pending' LIMIT ?`,
+            `UPDATE campaign_queue SET queue_status = 'in_progress' WHERE campaign_id = ? AND queue_status = 'pending' LIMIT ?`,
             [campaignId, batchSize]
         );
 
         // Fetch pending contacts in batches
         const [pendingContacts] = await dbConnection.query(
-            `SELECT * FROM campaign_queue WHERE status = 'in_progress' AND campaign_id = ? LIMIT ?`,
+            `SELECT * FROM campaign_queue WHERE queue_status = 'in_progress' AND campaign_id = ? LIMIT ?`,
             [campaignId, batchSize]
         );
 
@@ -58,7 +58,7 @@ const processCampaign = async (campaignId, messageTemplate) => {
             
             // Reset status back to pending
             await dbConnection.query(
-                `UPDATE campaign_queue SET status = 'pending' WHERE campaign_id = ? AND status = 'in_progress'`,
+                `UPDATE campaign_queue SET queue_status = 'pending' WHERE campaign_id = ? AND queue_status = 'in_progress'`,
                 [campaignId]
             );
 
@@ -82,14 +82,14 @@ const processCampaign = async (campaignId, messageTemplate) => {
                     );
 
                     await dbConnection.query(
-                        `UPDATE campaign_queue SET status='sent', sent_flag=1, message_id=?, channel=? WHERE id=?`,
+                        `UPDATE campaign_queue SET queue_status='sent', message_id=?, whatsapp_session_id=? WHERE id=?`,
                         [response.key.id, selectedChannel, contact.id]
                     );
 
                     await dbConnection.query(
-                        `INSERT INTO message_logs (user_id, campaign_id, message_id, recipient, status, message_content, send_time) 
-                         VALUES(?, ?, ?, ?, ?, ?, NOW())`,
-                        [contact.user_id, contact.campaign_id, response.key.id, contact.mobile, 'sent', messageTemplate]
+                        `INSERT INTO message_logs (user_id, campaign_id, template_id, message_id, recipient_phone, delivery_status, message_content, send_time) 
+                         VALUES(?, ?, ?, ?, ?, ?, ?, NOW())`,
+                        [contact.user_id, contact.campaign_id, templateId || null, response.key.id, contact.phone_number, 'sent', messageTemplate]
                     );
 
                     successCount++;
@@ -108,12 +108,12 @@ const processCampaign = async (campaignId, messageTemplate) => {
 
                     if (newRetryCount < maxRetries) {
                         await dbConnection.query(
-                            `UPDATE campaign_queue SET status='pending', retry_count=?, error_message=?, last_error_at=NOW() WHERE id=?`,
+                            `UPDATE campaign_queue SET queue_status='pending', retry_count=?, error_message=?, updated_at=NOW() WHERE id=?`,
                             [newRetryCount, error.message, contact.id]
                         );
                     } else {
                         await dbConnection.query(
-                            `UPDATE campaign_queue SET status='failed', retry_count=?, error_message=?, last_error_at=NOW() WHERE id=?`,
+                            `UPDATE campaign_queue SET queue_status='failed', retry_count=?, error_message=?, updated_at=NOW() WHERE id=?`,
                             [newRetryCount, error.message, contact.id]
                         );
                     }
@@ -128,7 +128,7 @@ const processCampaign = async (campaignId, messageTemplate) => {
         await Promise.all(queuePromises);
 
         logger.info(
-            { campaignId, processedCount, successCount, failedCount },
+            { campaignId, processedCount, successCount, failedCount, templateId },
             'Campaign batch processing completed'
         );
 
@@ -138,12 +138,13 @@ const processCampaign = async (campaignId, messageTemplate) => {
             processedCount,
             successCount,
             failedCount,
+            templateId,
             queueSize: messageQueue.size,
             pendingSize: messageQueue.pending
         };
     } catch (error) {
         logger.error(
-            { error: error.message, campaignId },
+            { error: error.message, campaignId, templateId },
             'Campaign processing failed'
         );
 
