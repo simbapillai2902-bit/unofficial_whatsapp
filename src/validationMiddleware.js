@@ -258,6 +258,31 @@ const deleteTemplateSchema = Joi.object({
     }).unknown(false).required()
 });
 
+const deleteCampaignContactSchema = Joi.object({
+    body: Joi.object({
+        campaign_id: Joi.number().integer().required().messages({
+            'number.base': 'campaign_id must be a number',
+            'any.required': 'campaign_id is required'
+        }),
+        user_id: Joi.number().integer().required().messages({
+            'number.base': 'user_id must be a number',
+            'any.required': 'user_id is required'
+        }),
+        contacts: Joi.array()
+            .items(
+                Joi.string()
+                    .pattern(/^[1-9]\d{9,14}$/)
+                    .required()
+            )
+            .max(1000)
+            .optional()
+            .messages({
+                'array.max': 'Maximum 1000 contacts allowed per request',
+                'string.pattern.base': 'Each contact must be a valid phone number (10-15 digits)'
+            })
+    }).unknown(false).required()
+});
+
 module.exports = {
     validateRequest,
     addCampaignContactSchema,
@@ -266,5 +291,6 @@ module.exports = {
     logoutWhatsAppSchema,
     saveTemplateSchema,
     updateTemplateSchema,
-    deleteTemplateSchema
+    deleteTemplateSchema,
+    deleteCampaignContactSchema
 };

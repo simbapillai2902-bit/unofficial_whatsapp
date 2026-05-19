@@ -1,12 +1,18 @@
 const express = require("express");
 const campaignController = require("../controller/campaignController.js");
-const { validateRequest, addCampaignContactSchema, startCampaignSchema } = require("../validationMiddleware");
+const { validateRequest, addCampaignContactSchema, startCampaignSchema, deleteCampaignContactSchema } = require("../validationMiddleware");
 const router = express.Router();
 
 router.post(
     '/add-contacts',
     validateRequest(addCampaignContactSchema),
     campaignController.addCampaignContact
+);
+
+router.post(
+    '/delete-contacts',
+    validateRequest(deleteCampaignContactSchema),
+    campaignController.deleteCampaignContacts
 );
 
 router.post(

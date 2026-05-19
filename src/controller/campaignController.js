@@ -155,9 +155,53 @@ const getJobStatus = asyncHandler(async (req, res) => {
     });
 });
 
+const deleteCampaignContacts = asyncHandler(async (req, res) => {
+    const { campaign_id, user_id, contacts } = req.validatedData.body;
+
+    try {
+        logger.info(
+            { campaignId: campaign_id, userId: user_id, specificContactsCount: contacts ? contacts.length : 'all' },
+            'Deleting contacts from campaign'
+        );
+
+        let query;
+        let queryParams;
+
+        if (contacts && contacts.length > 0) {
+            const placeholders = contacts.map(() => '?').join(',');
+            query = `DELETE FROM campaign_queue WHERE campaign_id = ? AND user_id = ? AND phone_number IN (${placeholders})`;
+            queryParams = [campaign_id, user_id, ...contacts];
+        } else {
+            query = `DELETE FROM campaign_queue WHERE campaign_id = ? AND user_id = ?`;
+            queryParams = [campaign_id, user_id];
+        }
+
+        const [result] = await dbConnection.query(query, queryParams);
+
+        logger.info(
+            { campaignId: campaign_id, userId: user_id, affectedRows: result.affectedRows },
+            'Contacts deleted successfully'
+        );
+
+        res.status(200).json({
+            success: true,
+            message: `${result.affectedRows} contacts deleted successfully`,
+            campaignId: campaign_id,
+            deletedCount: result.affectedRows
+        });
+    } catch (error) {
+        logger.error(
+            { error: error.message, campaignId: campaign_id, userId: user_id },
+            'Failed to delete campaign contacts'
+        );
+        throw error;
+    }
+});
+
 module.exports = {
     addCampaignContact,
     startCampaign,
     getCampaignProgressStatus,
-    getJobStatus
+    getJobStatus,
+    deleteCampaignContacts
 };

@@ -206,6 +206,27 @@
           }
         },
         {
+          "name": "1.5 Delete Contacts from Campaign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campaign_id\": 1,\n  \"user_id\": 1,\n  \"contacts\": [\n    \"919876543210\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/campaign/delete-contacts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "campaign", "delete-contacts"]
+            }
+          }
+        },
+        {
           "name": "2. Start Campaign (With Template ID)",
           "request": {
             "method": "POST",
