@@ -22,7 +22,7 @@ router.post(
 );
 
 router.get(
-    '/campaign/:campaignId/status',
+    '/:campaignId/status',
     campaignController.getCampaignProgressStatus
 );
 
