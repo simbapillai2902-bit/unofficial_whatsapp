@@ -1,61 +1,40 @@
 {
   "info": {
-    "_postman_id": "multi-channel-api-collection",
-    "name": "Multi-Channel API Collection",
-    "description": "Complete API documentation for multi-channel WhatsApp & Campaign messaging platform",
+    "_postman_id": "multi-channel-api-collection-v2",
+    "name": "NotifyNow Unofficial WhatsApp API",
+    "description": "Complete API collection for WhatsApp sessions, templates, and campaign messaging on wa.notifynow.in.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://wa.notifynow.in",
+      "type": "string"
+    }
+  ],
   "item": [
     {
-      "name": "Health & Status",
+      "name": "Health Check",
       "item": [
         {
-          "name": "Server Health Check",
+          "name": "API Health Check",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
-              "raw": "http://localhost:5000/health",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "5000",
-              "path": ["health"]
+              "raw": "{{base_url}}/api/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "health"]
             }
-          },
-          "response": []
-        },
-        {
-          "name": "Server Readiness Check",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "http://localhost:5000/ready",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "5000",
-              "path": ["ready"]
-            }
-          },
-          "response": []
+          }
         }
       ]
     },
     {
-      "name": "WhatsApp APIs",
+      "name": "WhatsApp Sessions",
       "item": [
         {
-          "name": "Connect WhatsApp Session",
+          "name": "1. Connect WhatsApp",
           "request": {
             "method": "POST",
             "header": [
@@ -66,40 +45,29 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"sessionName\": \"mysession\"\n}"
+              "raw": "{\n  \"sessionName\": \"session1\"\n}"
             },
             "url": {
-              "raw": "http://localhost:5000/api/whatsapp/connect",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "5000",
+              "raw": "{{base_url}}/api/whatsapp/connect",
+              "host": ["{{base_url}}"],
               "path": ["api", "whatsapp", "connect"]
             }
-          },
-          "response": []
+          }
         },
         {
-          "name": "Get All Sessions",
+          "name": "2. Get All Sessions",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
-              "raw": "http://localhost:5000/api/whatsapp/sessions",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "5000",
+              "raw": "{{base_url}}/api/whatsapp/sessions",
+              "host": ["{{base_url}}"],
               "path": ["api", "whatsapp", "sessions"]
             }
-          },
-          "response": []
+          }
         },
         {
-          "name": "Logout WhatsApp Session",
+          "name": "3. Logout Session",
           "request": {
             "method": "POST",
             "header": [
@@ -110,25 +78,22 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"sessionName\": \"mysession\"\n}"
+              "raw": "{\n  \"sessionName\": \"session1\"\n}"
             },
             "url": {
-              "raw": "http://localhost:5000/api/whatsapp/logout",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "5000",
+              "raw": "{{base_url}}/api/whatsapp/logout",
+              "host": ["{{base_url}}"],
               "path": ["api", "whatsapp", "logout"]
             }
-          },
-          "response": []
+          }
         }
       ]
     },
     {
-      "name": "Campaign APIs",
+      "name": "Message Templates",
       "item": [
         {
-          "name": "Add Campaign Contacts",
+          "name": "1. Create Template",
           "request": {
             "method": "POST",
             "header": [
@@ -139,20 +104,109 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"campaign_id\": 123,\n  \"user_id\": 456,\n  \"contacts\": [\n    \"9876543210\",\n    \"9876543211\",\n    \"9876543212\"\n  ]\n}"
+              "raw": "{\n  \"user_id\": 1,\n  \"template_name\": \"Welcome Promo\",\n  \"template_type\": \"plainText\",\n  \"template_content\": \"Hello {name}, welcome to our store!\",\n  \"variables\": [\"name\"],\n  \"preview_text\": \"Hello {{name}}, welcome to our store!\",\n  \"template_data\": {}\n}"
             },
             "url": {
-              "raw": "http://localhost:5000/api/campaign/add-contacts",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "5000",
+              "raw": "{{base_url}}/api/campaign/templates/save",
+              "host": ["{{base_url}}"],
+              "path": ["api", "campaign", "templates", "save"]
+            }
+          }
+        },
+        {
+          "name": "2. Get All Templates for User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/campaign/templates/user/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "campaign", "templates", "user", "1"]
+            }
+          }
+        },
+        {
+          "name": "3. Get Single Template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/campaign/templates/5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "campaign", "templates", "5"]
+            }
+          }
+        },
+        {
+          "name": "4. Update Template",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"template_name\": \"Welcome Promo V2\",\n  \"template_type\": \"plainText\",\n  \"template_content\": \"Hello {name}, welcome to our new store!\",\n  \"variables\": [\"name\"],\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/campaign/templates/5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "campaign", "templates", "5"]
+            }
+          }
+        },
+        {
+          "name": "5. Delete Template",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/campaign/templates/5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "campaign", "templates", "5"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Campaigns",
+      "item": [
+        {
+          "name": "1. Add Contacts to Campaign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campaign_id\": \"camp_001\",\n  \"user_id\": 1,\n  \"contacts\": [\n    \"919876543210\",\n    \"919876543211\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/campaign/add-contacts",
+              "host": ["{{base_url}}"],
               "path": ["api", "campaign", "add-contacts"]
             }
-          },
-          "response": []
+          }
         },
         {
-          "name": "Start Campaign",
+          "name": "2. Start Campaign (With Template ID)",
           "request": {
             "method": "POST",
             "header": [
@@ -163,57 +217,59 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"messageTemplate\": \"Hello {{name}}, your order {{orderId}} is confirmed. Thank you!\"\n}"
+              "raw": "{\n  \"templateId\": 5\n}"
             },
             "url": {
-              "raw": "http://localhost:5000/api/campaign/start/123",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "5000",
-              "path": ["api", "campaign", "start", "123"]
+              "raw": "{{base_url}}/api/campaign/start/camp_001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "campaign", "start", "camp_001"]
             }
-          },
-          "response": []
+          }
         },
         {
-          "name": "Get Campaign Status",
+          "name": "2. Start Campaign (Plain Text Message)",
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageTemplate\": \"Hello! Check out our offers today!\"\n}"
+            },
             "url": {
-              "raw": "http://localhost:5000/api/campaign/CAMP123456/status",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "5000",
-              "path": ["api", "campaign", "CAMP123456", "status"]
+              "raw": "{{base_url}}/api/campaign/start/camp_001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "campaign", "start", "camp_001"]
             }
-          },
-          "response": []
+          }
         },
         {
-          "name": "Get Job Status",
+          "name": "3. Check Campaign Status",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
-              "raw": "http://localhost:5000/api/campaign/job/JOB_123456/status",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "5000",
-              "path": ["api", "campaign", "job", "JOB_123456", "status"]
+              "raw": "{{base_url}}/api/campaign/camp_001/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "campaign", "camp_001", "status"]
             }
-          },
-          "response": []
+          }
+        },
+        {
+          "name": "4. Check Job Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/campaign/job/JOB_12345/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "campaign", "job", "JOB_12345", "status"]
+            }
+          }
         }
       ]
     }
