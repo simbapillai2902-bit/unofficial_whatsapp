@@ -1,3 +1,8 @@
+// Polyfill Web Crypto API for Node 18
+if (!globalThis.crypto) {
+    globalThis.crypto = require('crypto').webcrypto;
+}
+
 let baileys;
 async function getBaileys() {
     if (!baileys) {
