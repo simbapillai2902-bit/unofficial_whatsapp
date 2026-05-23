@@ -147,9 +147,15 @@
           "name": "API 3.4: Update Template",
           "request": {
             "method": "PUT",
-            "header": [ { "key": "Content-Type", "value": "application/json" } ],
-            "url": { "raw": "{{baseUrl}}/campaign/templates/5", "host": ["{{baseUrl}}"], "path": ["campaign", "templates", "5"] },
-            "body": { "mode": "raw", "raw": "{\n  \"user_id\": 1,\n  \"template_name\": \"Welcome Promo V2\",\n  \"template_type\": \"plainText\",\n  \"template_content\": \"Hello {name}, welcome to our new store!\",\n  \"variables\": [\"name\"],\n  \"is_active\": true\n}" }
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": "{{baseUrl}}/campaign/templates/5",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"template_name\": \"Welcome Promo V2\",\n  \"template_type\": \"plainText\",\n  \"template_content\": \"Hello {name}, welcome to our new store!\",\n  \"variables\": [\"name\"],\n  \"is_active\": true\n}"
+            }
           },
           "response": []
         },
@@ -157,9 +163,15 @@
           "name": "API 3.5: Delete Template",
           "request": {
             "method": "DELETE",
-            "header": [ { "key": "Content-Type", "value": "application/json" } ],
-            "url": { "raw": "{{baseUrl}}/campaign/templates/5", "host": ["{{baseUrl}}"], "path": ["campaign", "templates", "5"] },
-            "body": { "mode": "raw", "raw": "{\n  \"user_id\": 1\n}" }
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": "{{baseUrl}}/campaign/templates/5",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1\n}"
+            }
           },
           "response": []
         }
