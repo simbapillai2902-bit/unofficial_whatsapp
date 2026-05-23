@@ -26,15 +26,9 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null) =
             'Starting campaign processing'
         );
 
-        // Update campaign status to in-progress
-        await dbConnection.query(
-            `UPDATE campaign_queue SET queue_status = 'in_progress' WHERE campaign_id = ? AND queue_status = 'pending' LIMIT ?`,
-            [campaignId, batchSize]
-        );
-
-        // Fetch pending contacts in batches
+        // ✅ FIX: Fetch pending contacts FIRST, without updating status yet
         const [pendingContacts] = await dbConnection.query(
-            `SELECT * FROM campaign_queue WHERE queue_status = 'in_progress' AND campaign_id = ? LIMIT ?`,
+            `SELECT * FROM campaign_queue WHERE queue_status = 'pending' AND campaign_id = ? LIMIT ?`,
             [campaignId, batchSize]
         );
 
@@ -50,18 +44,15 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null) =
         }
 
         const sessions = getAllSessions();
-        
-        const activeChannels = sessions.filter(({connected})=> connected).map(({name})=> name);
+        const activeChannels = sessions
+            .filter(({ connected }) => connected)
+            .map(({ name, id }) => ({
+                name,
+                id
+            }));
 
         if (activeChannels.length === 0) {
             logger.error({ campaignId }, 'No active WhatsApp sessions available');
-            
-            // Reset status back to pending
-            await dbConnection.query(
-                `UPDATE campaign_queue SET queue_status = 'pending' WHERE campaign_id = ? AND queue_status = 'in_progress'`,
-                [campaignId]
-            );
-
             throw new Error('No active WhatsApp sessions');
         }
 
@@ -69,21 +60,35 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null) =
         const queuePromises = pendingContacts.map((contact) => {
             return messageQueue.add(async () => {
                 try {
-                    
+                    // ✅ FIX: Update to 'in_progress' JUST before sending
+                    await dbConnection.query(
+                        `UPDATE campaign_queue SET queue_status = 'in_progress' WHERE id = ?`,
+                        [contact.id]
+                    );
+
                     const selectedChannel = await rotationService.getNextChannel(activeChannels);
-                    if(selectedChannel == ( null || 0) ){
-                        throw new error ("Selected channel is not present")
+                    if (!selectedChannel) {
+                        throw new Error("Selected channel is not available");
                     }
 
+                    logger.debug(
+                        { contactId: contact.id, phoneNumber: contact.phone_number },
+                        'Sending message to contact'
+                    );
+
                     const response = await sendMessage(
-                        selectedChannel,
+                        selectedChannel.name,
                         contact.phone_number,
                         messageTemplate
                     );
-
+                    
+                    // ✅ FIX: Mark as 'sent' when WhatsApp accepts (message left our server)
+                    // Status will change to 'delivered' and 'read' when WhatsApp sends status updates
                     await dbConnection.query(
-                        `UPDATE campaign_queue SET queue_status='sent', message_id=?, whatsapp_session_id=? WHERE id=?`,
-                        [response.key.id, selectedChannel, contact.id]
+                        `UPDATE campaign_queue 
+                         SET queue_status='sent', message_id=?, whatsapp_session_id=?, sent_at=NOW(), updated_at=NOW() 
+                         WHERE id=?`,
+                        [response.key.id, selectedChannel.id, contact.id]
                     );
 
                     await dbConnection.query(
@@ -93,9 +98,9 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null) =
                     );
 
                     successCount++;
-                    logger.debug(
-                        { contactId: contact.id, campaignId },
-                        'Contact processed successfully'
+                    logger.info(
+                        { contactId: contact.id, campaignId, messageId: response.key.id },
+                        'Message sent successfully'
                     );
                 } catch (error) {
                     logger.error(
@@ -107,13 +112,19 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null) =
                     const maxRetries = parseInt(process.env.CAMPAIGN_MAX_RETRIES) || 3;
 
                     if (newRetryCount < maxRetries) {
+                        // ✅ FIX: Reset to 'pending' for retry
                         await dbConnection.query(
-                            `UPDATE campaign_queue SET queue_status='pending', retry_count=?, error_message=?, updated_at=NOW() WHERE id=?`,
+                            `UPDATE campaign_queue 
+                             SET queue_status='pending', retry_count=?, error_message=?, updated_at=NOW() 
+                             WHERE id=?`,
                             [newRetryCount, error.message, contact.id]
                         );
                     } else {
+                        // Mark as failed after max retries
                         await dbConnection.query(
-                            `UPDATE campaign_queue SET queue_status='failed', retry_count=?, error_message=?, updated_at=NOW() WHERE id=?`,
+                            `UPDATE campaign_queue 
+                             SET queue_status='failed', retry_count=?, error_message=?, failed_at=NOW(), updated_at=NOW() 
+                             WHERE id=?`,
                             [newRetryCount, error.message, contact.id]
                         );
                     }

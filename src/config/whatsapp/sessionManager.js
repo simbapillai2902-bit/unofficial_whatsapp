@@ -14,6 +14,7 @@ async function getBaileys() {
 const P = require("pino");
 const qrcode = require("qrcode");
 const { createLogger } = require("../../logger");
+const dbConnection = require('../dbConnection');
 
 const logger = createLogger('session-manager');
 
@@ -25,32 +26,63 @@ const CLEANUP_INTERVAL = parseInt(process.env.SESSION_CLEANUP_INTERVAL_MS) || 60
 const MAX_SESSIONS = parseInt(process.env.MAX_ACTIVE_SESSIONS) || 100;
 
 const createSession = async (sessionName) => {
+
     try {
-        // Check session limit
+
+        // Max session limit
         if (Object.keys(session).length >= MAX_SESSIONS) {
-            throw new Error(`Maximum active sessions (${MAX_SESSIONS}) reached`);
+            throw new Error(
+                `Maximum active sessions (${MAX_SESSIONS}) reached`
+            );
         }
 
+        // Close old session if exists
         if (session[sessionName]?.sock) {
-            logger.warn({ sessionName }, 'Session already exists, closing old session');
+
+            logger.warn(
+                { sessionName },
+                'Session already exists, closing old session'
+            );
+
             try {
+
+                session[sessionName].sock.ev.removeAllListeners();
+
                 session[sessionName].sock.end();
+
             } catch (e) {
-                logger.error({ error: e.message }, 'Error closing old session');
+
+                logger.error(
+                    {
+                        error: e.message,
+                        sessionName
+                    },
+                    'Error closing old session'
+                );
             }
         }
 
-        const { default: makeWASocket, useMultiFileAuthState } = await getBaileys();
-        const { state, saveCreds } = await useMultiFileAuthState(`session/${sessionName}`);
+        const {
+            default: makeWASocket,
+            useMultiFileAuthState,
+            DisconnectReason
+        } = await getBaileys();
+
+        const { state, saveCreds } =
+            await useMultiFileAuthState(`session/${sessionName}`);
 
         const sock = makeWASocket({
             auth: state,
             logger: P({ level: 'silent' })
         });
 
+        // Store session
         session[sessionName] = {
+            id: null,
+            sessionName,
             sock,
             connected: false,
+            reconnecting: false,
             qr: null,
             createdAt: Date.now(),
             lastActivity: Date.now(),
@@ -59,61 +91,366 @@ const createSession = async (sessionName) => {
             maxReconnectAttempts: 5
         };
 
+        // Save creds
         sock.ev.on('creds.update', saveCreds);
 
+        // Connection updates
         sock.ev.on('connection.update', async (update) => {
-            const { connection, qr, lastDisconnect } = update;
 
-            if (qr) {
-                try {
-                    const qrImage = await qrcode.toDataURL(qr);
-                    session[sessionName].qr = qrImage;
-                    logger.info({ sessionName }, 'QR code generated');
-                } catch (error) {
-                    logger.error({ error: error.message, sessionName }, 'Error generating QR code');
+            try {
+
+                const { connection, qr, lastDisconnect } = update;
+
+                // QR generated
+                if (qr) {
+
+                    try {
+
+                        const qrImage =
+                            await qrcode.toDataURL(qr);
+
+                        session[sessionName].qr = qrImage;
+
+                        logger.info(
+                            { sessionName },
+                            'QR code generated'
+                        );
+
+                    } catch (error) {
+
+                        logger.error(
+                            {
+                                error: error.message,
+                                sessionName
+                            },
+                            'Error generating QR code'
+                        );
+                    }
                 }
-            }
 
-            if (connection === 'open') {
-                session[sessionName].connected = true;
-                session[sessionName].reconnectAttempts = 0;
-                logger.info({ sessionName }, 'Session connected');
-            }
+                // Connected
+                if (connection === 'open') {
 
-            if (connection === 'close') {
-                const { DisconnectReason } = await getBaileys();
-                const shouldReconnect =
-                    lastDisconnect?.error?.output?.statusCode !==
-                    DisconnectReason.loggedOut;
+                    session[sessionName].connected = true;
 
-                if (shouldReconnect && session[sessionName]?.reconnectAttempts < session[sessionName]?.maxReconnectAttempts) {
-                    session[sessionName].reconnectAttempts++;
-                    session[sessionName].connected = false;
+                    session[sessionName].reconnecting = false;
+
+                    session[sessionName].reconnectAttempts = 0;
+
+                    // Fetch DB ID
+                    try {
+
+                        const [configs] =
+                            await dbConnection.query(
+                                `SELECT id
+                                 FROM whatsapp_configs
+                                 WHERE session_name = ?
+                                 LIMIT 1`,
+                                [sessionName]
+                            );
+
+                        if (configs.length > 0) {
+
+                            session[sessionName].id =
+                                configs[0].id;
+                        }
+
+                    } catch (dbError) {
+
+                        logger.error(
+                            {
+                                sessionName,
+                                error: dbError.message
+                            },
+                            'Failed to fetch session ID'
+                        );
+                    }
+
                     logger.info(
-                        { sessionName, attempt: session[sessionName].reconnectAttempts },
-                        'Attempting to reconnect'
+                        {
+                            sessionName,
+                            sessionId:
+                                session[sessionName].id
+                        },
+                        'Session connected'
                     );
-                    
-                    // Wait before reconnecting
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-                    createSession(sessionName);
-                } else {
-                    logger.warn({ sessionName }, 'Max reconnection attempts reached or logged out');
-                    // Clean up session
-                    delete session[sessionName];
                 }
+
+                // Connection closed
+                if (connection === 'close') {
+
+                    session[sessionName].connected = false;
+
+                    const shouldReconnect =
+                        lastDisconnect?.error?.output?.statusCode !==
+                        DisconnectReason.loggedOut;
+
+                    // Reconnect logic
+                    if (
+                        shouldReconnect &&
+                        !session[sessionName]?.reconnecting &&
+                        session[sessionName]?.reconnectAttempts <
+                        session[sessionName]?.maxReconnectAttempts
+                    ) {
+
+                        session[sessionName].reconnecting = true;
+
+                        session[sessionName].reconnectAttempts++;
+
+                        logger.info(
+                            {
+                                sessionName,
+                                attempt:
+                                    session[sessionName]
+                                        .reconnectAttempts
+                            },
+                            'Attempting to reconnect'
+                        );
+
+                        // Wait before reconnect
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, 3000)
+                        );
+
+                        try {
+
+                            // Cleanup old socket
+                            if (session[sessionName]?.sock) {
+
+                                session[sessionName]
+                                    .sock.ev.removeAllListeners();
+
+                                try {
+
+                                    session[sessionName]
+                                        .sock.end();
+
+                                } catch (e) {}
+                            }
+
+                            delete session[sessionName];
+
+                            // Recreate session
+                            await createSession(sessionName);
+
+                        } catch (reconnectError) {
+
+                            logger.error(
+                                {
+                                    sessionName,
+                                    error:
+                                        reconnectError.message
+                                },
+                                'Reconnect failed'
+                            );
+                        }
+
+                    } else {
+
+                        logger.warn(
+                            { sessionName },
+                            'Max reconnect attempts reached or logged out'
+                        );
+
+                        // Cleanup
+                        try {
+
+                            if (session[sessionName]?.sock) {
+
+                                session[sessionName]
+                                    .sock.ev.removeAllListeners();
+
+                                session[sessionName]
+                                    .sock.end();
+                            }
+
+                        } catch (e) {}
+
+                        delete session[sessionName];
+                    }
+                }
+
+            } catch (connectionError) {
+
+                logger.error(
+                    {
+                        sessionName,
+                        error: connectionError.message
+                    },
+                    'Connection update error'
+                );
             }
         });
 
-        logger.info({ sessionName }, 'Session created');
+        // Message updates
+        sock.ev.on('messages.update', (updates) => {
+
+            try {
+
+                for (const update of updates) {
+
+                    logger.debug(
+                        {
+                            sessionName,
+                            messageId: update.key?.id,
+                            status: update.update?.status
+                        },
+                        'Message status update received'
+                    );
+
+                    // Delivered (status 3)
+                    if (
+                        update.update?.status === 3
+                    ) {
+
+                        logger.info(
+                            {
+                                sessionName,
+                                messageId: update.key?.id
+                            },
+                            'Message delivered'
+                        );
+
+                        // Update database with proper error handling
+                        if (update.key?.id) {
+                            (async () => {
+                                try {
+                                    // Update campaign_queue with delivered_at timestamp
+                                    const deliveryResult = await dbConnection.query(
+                                        `UPDATE campaign_queue 
+                                         SET queue_status = 'delivered', delivered_at = NOW(), updated_at = NOW() 
+                                         WHERE message_id = ?`,
+                                        [update.key.id]
+                                    );
+                                    
+                                    // Update message_logs
+                                    await dbConnection.query(
+                                        `UPDATE message_logs 
+                                         SET delivery_status = 'delivered', delivery_time = NOW() 
+                                         WHERE message_id = ?`,
+                                        [update.key.id]
+                                    );
+                                    
+                                    if (deliveryResult[0].affectedRows > 0) {
+                                        logger.info(
+                                            { messageId: update.key.id },
+                                            'Message delivery status updated in database'
+                                        );
+                                    }
+                                } catch (dbError) {
+                                    logger.error(
+                                        { 
+                                            messageId: update.key.id, 
+                                            error: dbError.message,
+                                            code: dbError.code
+                                        },
+                                        'Failed to update delivery status in database'
+                                    );
+                                }
+                            })();
+                        }
+                    }
+
+                    // Read (status 4)
+                    if (
+                        update.update?.status === 4
+                    ) {
+
+                        logger.info(
+                            {
+                                sessionName,
+                                messageId: update.key?.id
+                            },
+                            'Message read'
+                        );
+
+                        // Update database with proper error handling
+                        if (update.key?.id) {
+                            (async () => {
+                                try {
+                                    // Update campaign_queue with read_at timestamp
+                                    const readResult = await dbConnection.query(
+                                        `UPDATE campaign_queue 
+                                         SET queue_status = 'read', read_at = NOW(), updated_at = NOW() 
+                                         WHERE message_id = ?`,
+                                        [update.key.id]
+                                    );
+                                    
+                                    // Update message_logs
+                                    await dbConnection.query(
+                                        `UPDATE message_logs 
+                                         SET delivery_status = 'read', read_time = NOW() 
+                                         WHERE message_id = ?`,
+                                        [update.key.id]
+                                    );
+                                    
+                                    if (readResult[0].affectedRows > 0) {
+                                        logger.info(
+                                            { messageId: update.key.id },
+                                            'Message read status updated in database'
+                                        );
+                                    }
+                                } catch (dbError) {
+                                    logger.error(
+                                        { 
+                                            messageId: update.key.id, 
+                                            error: dbError.message,
+                                            code: dbError.code
+                                        },
+                                        'Failed to update read status in database'
+                                    );
+                                }
+                            })();
+                        }
+                    }
+                }
+
+            } catch (messageError) {
+
+                logger.error(
+                    {
+                        sessionName,
+                        error: messageError.message
+                    },
+                    'Message update error'
+                );
+            }
+        });
+
+        logger.info(
+            { sessionName },
+            'Session created'
+        );
+
         return session[sessionName];
+
     } catch (error) {
-        logger.error({ error: error.message, sessionName }, 'Failed to create session');
+
+        logger.error(
+            {
+                error: error.message,
+                sessionName
+            },
+            'Failed to create session'
+        );
+
+        try {
+
+            if (session[sessionName]?.sock) {
+
+                session[sessionName]
+                    .sock.ev.removeAllListeners();
+
+                session[sessionName].sock.end();
+            }
+
+        } catch (e) {}
+
         delete session[sessionName];
+
         throw error;
     }
 };
-
 const getSession = (sessionName) => {
     const sess = session[sessionName];
     if (sess) {
@@ -125,10 +462,11 @@ const getSession = (sessionName) => {
 const getAllSessions = () => {
     return Object.keys(session).map(key => ({
         name: key,
+        id: session[key].id,
         connected: session[key].connected,
         createdAt: session[key].createdAt,
         lastActivity: session[key].lastActivity,
-        qr: session[key].qr ? true : false // Don't expose actual QR data
+        qr: session[key].qr ? true : false
     }));
 };
 
@@ -157,7 +495,7 @@ const startSessionCleanup = () => {
 
             for (const sessionName of Object.keys(session)) {
                 const sess = session[sessionName];
-                
+
                 // Delete if inactive for too long
                 if (now - sess.lastActivity > SESSION_TIMEOUT) {
                     await deleteSession(sessionName);
@@ -185,11 +523,11 @@ const stopSessionCleanup = () => {
 const closeAllSessions = async () => {
     try {
         stopSessionCleanup();
-        
+
         for (const sessionName of Object.keys(session)) {
             await deleteSession(sessionName);
         }
-        
+
         logger.info('All sessions closed');
     } catch (error) {
         logger.error({ error: error.message }, 'Error closing all sessions');

@@ -5,7 +5,7 @@ const router = express.Router();
 
 // Save/Create template
 router.post(
-    '/templates/save',
+    '/save',
     validateRequest(saveTemplateSchema),
     templateController.saveTemplate
 );

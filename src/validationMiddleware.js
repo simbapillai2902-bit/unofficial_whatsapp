@@ -79,22 +79,29 @@ const addCampaignContactSchema = Joi.object({
         contacts: Joi.array()
             .items(
                 Joi.string()
-                    .pattern(/^[1-9]\d{9,14}$/)
+                    .pattern(/^\+?[1-9]\d{9,14}$/)
                     .required()
+                    .messages({
+                        'string.pattern.base': 'Phone number must be 10-15 digits (with optional + prefix). Example: +919876543210'
+                    })
             )
-            .max(1000)
+            .max(2000)
             .min(1)
             .required()
             .messages({
-                'array.max': 'Maximum 1000 contacts allowed per request',
+                'array.max': 'Maximum 2000 contacts allowed per request',
                 'array.min': 'At least 1 contact required',
-                'string.pattern.base': 'Each contact must be a valid phone number (10-15 digits)'
+                'array.base': 'contacts must be an array of phone numbers as strings'
             })
     }).unknown(false).required()
 });
 
 const startCampaignSchema = Joi.object({
     body: Joi.object({
+        user_id: Joi.number().integer().optional().messages({
+            'number.base': 'user_id must be a number',
+            'number.integer': 'user_id must be an integer'
+        }),
         messageTemplate: Joi.string().min(1).max(4096).optional().messages({
             'string.base': 'messageTemplate must be a string',
             'string.empty': 'messageTemplate cannot be empty',
@@ -283,6 +290,22 @@ const deleteCampaignContactSchema = Joi.object({
     }).unknown(false).required()
 });
 
+const createUserSchema = Joi.object({
+    body: Joi.object({
+        username: Joi.string().min(3).max(50).required(),
+        email: Joi.string().email().required()
+    }).unknown(false).required()
+});
+
+
+const createCampaignSchema = Joi.object({
+    body: Joi.object({
+        user_id: Joi.number().integer().required(),
+        campaign_name: Joi.string().min(3).max(255).required(),
+        campaign_description: Joi.string().max(1000).optional()
+    }).unknown(false).required()
+});
+
 module.exports = {
     validateRequest,
     addCampaignContactSchema,
@@ -292,5 +315,7 @@ module.exports = {
     saveTemplateSchema,
     updateTemplateSchema,
     deleteTemplateSchema,
-    deleteCampaignContactSchema
+    deleteCampaignContactSchema,
+    createUserSchema,
+    createCampaignSchema
 };
