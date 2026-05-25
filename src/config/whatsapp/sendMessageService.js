@@ -1,14 +1,51 @@
+const https = require('https');
+const http = require('http');
 const { getSession } = require("./sessionManager.js");
 const { createLogger } = require("../../logger");
 
 const logger = createLogger('send-message-service');
 
 /**
+ * Download an image URL and return a Buffer.
+ * Baileys { url } shorthand can fail on some servers — buffer is most reliable.
+ */
+const downloadImageBuffer = (imageUrl) => {
+    return new Promise((resolve, reject) => {
+        const client = imageUrl.startsWith('https') ? https : http;
+        client.get(imageUrl, (res) => {
+            if (res.statusCode !== 200) {
+                return reject(new Error(`Image fetch failed: HTTP ${res.statusCode} for ${imageUrl}`));
+            }
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => resolve(Buffer.concat(chunks)));
+            res.on('error', reject);
+        }).on('error', reject);
+    });
+};
+
+/**
+ * Detect mimetype from URL extension.
+ * Defaults to image/jpeg if unknown.
+ */
+const getMimeType = (url) => {
+    const ext = (url.split('?')[0].split('.').pop() || '').toLowerCase();
+    const map = {
+        png:  'image/png',
+        jpg:  'image/jpeg',
+        jpeg: 'image/jpeg',
+        gif:  'image/gif',
+        webp: 'image/webp',
+    };
+    return map[ext] || 'image/jpeg';
+};
+
+/**
  * Send a WhatsApp message (text-only or image+caption).
  *
- * @param {string} sessionName  - Baileys session name (e.g. "session33")
- * @param {string} mobile       - Phone number without + (e.g. "919876543210")
- * @param {string} message      - Text message or caption for the image
+ * @param {string} sessionName   - Baileys session name (e.g. "session33")
+ * @param {string} mobile        - Phone number without + (e.g. "919876543210")
+ * @param {string} message       - Text message or caption for the image
  * @param {string|null} imageUrl - (Optional) Public URL of the image to send
  */
 const sendMessage = async (sessionName, mobile, message, imageUrl = null) => {
@@ -39,18 +76,22 @@ const sendMessage = async (sessionName, mobile, message, imageUrl = null) => {
         let response;
 
         if (imageUrl) {
-            // ── Image Message ──────────────────────────────────────────────
-            logger.debug({ sessionName, mobile, imageUrl }, 'Sending image message');
+            // ── Image Message ─────────────────────────────────────────────
+            logger.info({ sessionName, mobile, imageUrl }, 'Downloading image for WhatsApp send');
 
-            // Download image as buffer (Baileys requires buffer or { url } object)
-            // Using { url } is simpler — Baileys will fetch it internally.
+            // Download image as Buffer — most reliable method in Baileys
+            const imageBuffer = await downloadImageBuffer(imageUrl);
+            const mimetype   = getMimeType(imageUrl);
+
+            logger.info({ sessionName, mobile, imageUrl, mimetype, bufferSize: imageBuffer.length }, 'Image downloaded, sending via Baileys');
+
             response = await session.sock.sendMessage(jid, {
-                image: { url: imageUrl },
-                caption: message || '',   // caption is optional
-                mimetype: 'image/jpeg',   // Baileys auto-detects from URL if omitted, but being explicit helps
+                image:    imageBuffer,
+                caption:  message || '',
+                mimetype: mimetype,
             });
         } else {
-            // ── Text-only Message ──────────────────────────────────────────
+            // ── Text-only Message ─────────────────────────────────────────
             response = await session.sock.sendMessage(jid, {
                 text: message,
             });
@@ -58,7 +99,7 @@ const sendMessage = async (sessionName, mobile, message, imageUrl = null) => {
 
         session.messageCount++;
 
-        logger.debug(
+        logger.info(
             { sessionName, mobile, messageId: response.key.id, hasImage: !!imageUrl },
             'Message sent successfully'
         );
@@ -66,7 +107,7 @@ const sendMessage = async (sessionName, mobile, message, imageUrl = null) => {
         return response;
     } catch (error) {
         logger.error(
-            { error: error.message, sessionName, mobile, hasImage: !!imageUrl },
+            { error: error.message, sessionName, mobile, imageUrl },
             'Failed to send message'
         );
         throw error;
@@ -74,4 +115,3 @@ const sendMessage = async (sessionName, mobile, message, imageUrl = null) => {
 };
 
 module.exports = sendMessage;
-
