@@ -457,7 +457,7 @@ const addCampaignContact = asyncHandler(async (req, res) => {
 });
 
 const startCampaign = asyncHandler(async (req, res) => {
-    const { messageTemplate, templateId } = req.validatedData.body;
+    const { messageTemplate, templateId, sessionName } = req.validatedData.body;
     const { campaignId } = req.validatedData.params;
 
     try {
@@ -504,7 +504,7 @@ const startCampaign = asyncHandler(async (req, res) => {
 
         // Start campaign processing in background (don't wait for it)
         // This prevents timeout issues - user can check status with GET endpoint
-        processCampaign(campaignId, finalMessage, templateId).catch(error => {
+        processCampaign(campaignId, finalMessage, templateId, sessionName).catch(error => {
             logger.error(
                 { campaignId, error: error.message },
                 'Background campaign processing failed'

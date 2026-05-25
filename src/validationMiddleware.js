@@ -112,6 +112,9 @@ const startCampaignSchema = Joi.object({
         templateId: Joi.number().integer().optional().messages({
             'number.base': 'templateId must be a number',
             'number.integer': 'templateId must be an integer'
+        }),
+        sessionName: Joi.string().optional().messages({
+            'string.base': 'sessionName must be a string'
         })
     })
         .unknown(false)
