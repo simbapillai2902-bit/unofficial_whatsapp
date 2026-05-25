@@ -78,12 +78,22 @@ const addCampaignContactSchema = Joi.object({
         }),
         contacts: Joi.array()
             .items(
-                Joi.string()
-                    .pattern(/^\+?[1-9]\d{9,14}$/)
-                    .required()
-                    .messages({
-                        'string.pattern.base': 'Phone number must be 10-15 digits (with optional + prefix). Example: +919876543210'
+                Joi.alternatives().try(
+                    Joi.string()
+                        .pattern(/^\+?[1-9]\d{9,14}$/)
+                        .messages({
+                            'string.pattern.base': 'Phone number must be 10-15 digits (with optional + prefix). Example: +919876543210'
+                        }),
+                    Joi.object({
+                        phone: Joi.string()
+                            .pattern(/^\+?[1-9]\d{9,14}$/)
+                            .required()
+                            .messages({
+                                'string.pattern.base': 'Phone number must be 10-15 digits (with optional + prefix). Example: +919876543210'
+                            }),
+                        variables: Joi.object().unknown().optional()
                     })
+                )
             )
             .max(2000)
             .min(1)
@@ -91,7 +101,7 @@ const addCampaignContactSchema = Joi.object({
             .messages({
                 'array.max': 'Maximum 2000 contacts allowed per request',
                 'array.min': 'At least 1 contact required',
-                'array.base': 'contacts must be an array of phone numbers as strings'
+                'array.base': 'contacts must be an array of phone numbers or objects containing phone and variables'
             })
     }).unknown(false).required()
 });

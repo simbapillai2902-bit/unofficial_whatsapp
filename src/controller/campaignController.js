@@ -212,10 +212,13 @@ const addCampaignContact = asyncHandler(async (req, res) => {
             // only user_id + phone_number
             // =================================================
 
-            const contactValues = batch.flatMap(phoneNumber => [
-                user_id,
-                phoneNumber
-            ]);
+            const contactValues = batch.flatMap(contact => {
+                const phone = typeof contact === 'string' ? contact : contact.phone;
+                return [
+                    user_id,
+                    phone
+                ];
+            });
 
             const contactPlaceholders = batch
                 .map(() => '(?, ?)')
@@ -243,16 +246,21 @@ const addCampaignContact = asyncHandler(async (req, res) => {
             // CAMPAIGN QUEUE INSERT
             // =================================================
 
-            const queueValues = batch.flatMap(phoneNumber => [
-                campaign_id,
-                user_id,
-                phoneNumber,
-                'pending',
-                null
-            ]);
+            const queueValues = batch.flatMap(contact => {
+                const phone = typeof contact === 'string' ? contact : contact.phone;
+                const variables = typeof contact === 'string' ? {} : (contact.variables || {});
+                return [
+                    campaign_id,
+                    user_id,
+                    phone,
+                    'pending',
+                    null,
+                    JSON.stringify(variables)
+                ];
+            });
 
             const queuePlaceholders = batch
-                .map(() => '(?, ?, ?, ?, ?)')
+                .map(() => '(?, ?, ?, ?, ?, ?)')
                 .join(',');
 
             const [queueResult] = await connection.query(
@@ -263,7 +271,8 @@ const addCampaignContact = asyncHandler(async (req, res) => {
                     user_id,
                     phone_number,
                     queue_status,
-                    message_id
+                    message_id,
+                    variables
                 )
                 VALUES ${queuePlaceholders}
                 `,

@@ -76,10 +76,32 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null) =
                         'Sending message to contact'
                     );
 
+                    // Interpolate variables if they exist
+                    let personalizedMessage = messageTemplate;
+                    if (contact.variables) {
+                        let variablesObj = {};
+                        try {
+                            variablesObj = typeof contact.variables === 'string'
+                                ? JSON.parse(contact.variables)
+                                : contact.variables;
+                        } catch (e) {
+                            logger.warn({ error: e.message, contactId: contact.id }, 'Failed to parse variables for contact');
+                        }
+
+                        if (variablesObj && typeof variablesObj === 'object') {
+                            Object.keys(variablesObj).forEach(key => {
+                                const value = variablesObj[key];
+                                const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                                const regex = new RegExp(`{{\\s*${escapedKey}\\s*}}`, 'g');
+                                personalizedMessage = personalizedMessage.replace(regex, value !== undefined && value !== null ? value : '');
+                            });
+                        }
+                    }
+
                     const response = await sendMessage(
                         selectedChannel.name,
                         contact.phone_number,
-                        messageTemplate
+                        personalizedMessage
                     );
                     
                     // ✅ FIX: Mark as 'sent' when WhatsApp accepts (message left our server)
@@ -94,7 +116,7 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null) =
                     await dbConnection.query(
                         `INSERT INTO message_logs (user_id, campaign_id, template_id, message_id, recipient_phone, delivery_status, message_content, send_time) 
                          VALUES(?, ?, ?, ?, ?, ?, ?, NOW())`,
-                        [contact.user_id, contact.campaign_id, templateId || null, response.key.id, contact.phone_number, 'sent', messageTemplate]
+                        [contact.user_id, contact.campaign_id, templateId || null, response.key.id, contact.phone_number, 'sent', personalizedMessage]
                     );
 
                     successCount++;
