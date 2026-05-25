@@ -10,11 +10,39 @@ const { createLogger } = require("../../logger");
 const logger = createLogger('campaign-processor');
 
 const messageQueue = new PQueue({
-    concurrency: parseInt(process.env.CAMPAIGN_QUEUE_CONCURRENCY) || 5,
+    concurrency: parseInt(process.env.CAMPAIGN_QUEUE_CONCURRENCY) || 1,
     interval: 60 * 1000, // 1 minute
-    intervalCap: parseInt(process.env.CAMPAIGN_RATE_LIMIT_PER_MINUTE) || 50,
+    intervalCap: parseInt(process.env.CAMPAIGN_RATE_LIMIT_PER_MINUTE) || 20,
     carryoverConcurrencyCount: true
 });
+
+// --- Anti-Ban Configuration ---
+const antiBan = {
+    jitterMin:       parseInt(process.env.ANTI_BAN_JITTER_MIN_MS)         || 3000,
+    jitterMax:       parseInt(process.env.ANTI_BAN_JITTER_MAX_MS)         || 8000,
+    burstThreshold:  parseInt(process.env.ANTI_BAN_BURST_THRESHOLD)       || 20,
+    burstPauseMin:   parseInt(process.env.ANTI_BAN_BURST_PAUSE_MIN_MS)    || 15000,
+    burstPauseMax:   parseInt(process.env.ANTI_BAN_BURST_PAUSE_MAX_MS)    || 35000,
+    warmupMessages:  parseInt(process.env.ANTI_BAN_WARMUP_MESSAGES)       || 10,
+    warmupMultiplier:parseFloat(process.env.ANTI_BAN_WARMUP_MULTIPLIER)   || 2,
+};
+
+/**
+ * Returns a random integer between min and max (inclusive).
+ */
+const randomBetween = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+/**
+ * Returns a jitter delay in ms.
+ * If isWarmup is true, the delay is multiplied by antiBan.warmupMultiplier.
+ */
+const getJitterDelay = (isWarmup = false) => {
+    const base = randomBetween(antiBan.jitterMin, antiBan.jitterMax);
+    return isWarmup ? Math.round(base * antiBan.warmupMultiplier) : base;
+};
+
+// Per-session send counters (reset on process restart — sufficient for anti-ban)
+const sessionSendCounters = {};
 
 const processCampaign = async (campaignId, messageTemplate, templateId = null, sessionName = null) => {
     const batchSize = parseInt(process.env.CAMPAIGN_BATCH_SIZE) || 1000;
@@ -130,6 +158,31 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null, s
                         { contactId: contact.id, phoneNumber: contact.phone_number },
                         'Sending message to contact'
                     );
+
+                    // ─── ANTI-BAN: Per-send delay with jitter ─────────────────────────────────
+                    const sessionKey = selectedChannel.name;
+                    sessionSendCounters[sessionKey] = (sessionSendCounters[sessionKey] || 0) + 1;
+                    const sendCount = sessionSendCounters[sessionKey];
+
+                    const isWarmup = sendCount <= antiBan.warmupMessages;
+                    const isBurst  = sendCount % antiBan.burstThreshold === 0;
+
+                    if (isBurst) {
+                        const burstPause = randomBetween(antiBan.burstPauseMin, antiBan.burstPauseMax);
+                        logger.info(
+                            { campaignId, sessionName: sessionKey, sendCount, burstPause },
+                            `Anti-ban burst pause: ${(burstPause / 1000).toFixed(1)}s after ${antiBan.burstThreshold} messages`
+                        );
+                        await new Promise(resolve => setTimeout(resolve, burstPause));
+                    } else {
+                        const jitter = getJitterDelay(isWarmup);
+                        logger.debug(
+                            { campaignId, sessionName: sessionKey, sendCount, jitter, isWarmup },
+                            `Anti-ban jitter delay: ${jitter}ms${isWarmup ? ' (warm-up)' : ''}`
+                        );
+                        await new Promise(resolve => setTimeout(resolve, jitter));
+                    }
+                    // ─────────────────────────────────────────────────────────────────────────
 
                     // Interpolate variables if they exist
                     let personalizedMessage = messageTemplate;
