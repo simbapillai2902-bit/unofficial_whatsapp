@@ -213,7 +213,11 @@ const addCampaignContact = asyncHandler(async (req, res) => {
             // =================================================
 
             const contactValues = batch.flatMap(contact => {
-                const phone = typeof contact === 'string' ? contact : contact.phone;
+                // Coerce numeric phone numbers to string (handles integer contacts from proxy)
+                const rawPhone = typeof contact === 'string' || typeof contact === 'number'
+                    ? contact
+                    : contact.phone;
+                const phone = String(rawPhone);
                 return [
                     user_id,
                     phone
@@ -247,8 +251,14 @@ const addCampaignContact = asyncHandler(async (req, res) => {
             // =================================================
 
             const queueValues = batch.flatMap(contact => {
-                const phone = typeof contact === 'string' ? contact : contact.phone;
-                const variables = typeof contact === 'string' ? {} : (contact.variables || {});
+                // Coerce numeric phone numbers to string (handles integer contacts from proxy)
+                const rawPhone = typeof contact === 'string' || typeof contact === 'number'
+                    ? contact
+                    : contact.phone;
+                const phone = String(rawPhone);
+                const variables = (typeof contact === 'string' || typeof contact === 'number')
+                    ? {}
+                    : (contact.variables || {});
                 return [
                     campaign_id,
                     user_id,

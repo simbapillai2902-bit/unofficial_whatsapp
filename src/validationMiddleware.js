@@ -79,20 +79,29 @@ const addCampaignContactSchema = Joi.object({
         contacts: Joi.array()
             .items(
                 Joi.alternatives().try(
+                    // Format 1: plain string phone number e.g. "919876543210" or "+919876543210"
                     Joi.string()
                         .pattern(/^\+?[1-9]\d{9,14}$/)
                         .messages({
                             'string.pattern.base': 'Phone number must be 10-15 digits (with optional + prefix). Example: +919876543210'
                         }),
+                    // Format 2: numeric phone number (will be coerced to string in controller)
+                    Joi.number()
+                        .integer()
+                        .positive()
+                        .messages({
+                            'number.base': 'Phone number must be a valid number'
+                        }),
+                    // Format 3: object with phone + optional variables
                     Joi.object({
-                        phone: Joi.string()
-                            .pattern(/^\+?[1-9]\d{9,14}$/)
-                            .required()
-                            .messages({
-                                'string.pattern.base': 'Phone number must be 10-15 digits (with optional + prefix). Example: +919876543210'
-                            }),
-                        variables: Joi.object().unknown().optional()
-                    })
+                        phone: Joi.alternatives().try(
+                            Joi.string().pattern(/^\+?[1-9]\d{9,14}$/),
+                            Joi.number().integer().positive()
+                        ).required().messages({
+                            'alternatives.match': 'Phone number must be 10-15 digits. Example: +919876543210 or 919876543210'
+                        }),
+                        variables: Joi.object().unknown(true).optional()
+                    }).unknown(true)  // Allow any extra fields in contact object
                 )
             )
             .max(2000)
