@@ -25,7 +25,7 @@ const validateRequest = (schema) => {
                 },
                 {
                     abortEarly: false,
-                    stripUnknown: false,
+                    stripUnknown: true,
                 }
             );
 
