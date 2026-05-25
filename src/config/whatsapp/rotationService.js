@@ -9,7 +9,7 @@ class RotationService {
             throw new Error(`No active channels avaliable`);
         }
 
-        if (this.messageCount >= 25) {
+        if (this.messageCount >= 100) {
             this.currentIndex = (this.currentIndex + 1) % channels.length;
             this.messageCount = 0 ;
         }
