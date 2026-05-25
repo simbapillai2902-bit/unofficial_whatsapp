@@ -457,7 +457,7 @@ const addCampaignContact = asyncHandler(async (req, res) => {
 });
 
 const startCampaign = asyncHandler(async (req, res) => {
-    const { messageTemplate, templateId, sessionName } = req.validatedData.body;
+    const { messageTemplate, templateId, sessionName, imageUrl } = req.validatedData.body;
     const { campaignId } = req.validatedData.params;
 
     try {
@@ -477,12 +477,13 @@ const startCampaign = asyncHandler(async (req, res) => {
             finalMessage = templates[0].template_content;
         }
 
-        if (!finalMessage) {
-            throw new AppError('Either messageTemplate or valid templateId must be provided', 400, 'CAMPAIGN_003');
+        // Allow image-only campaigns (no text required)
+        if (!finalMessage && !imageUrl) {
+            throw new AppError('Either messageTemplate, valid templateId, or imageUrl must be provided', 400, 'CAMPAIGN_003');
         }
 
         logger.info(
-            { campaignId, userId: req.user?.id, templateId, hasTemplate: !!templateId },
+            { campaignId, userId: req.user?.id, templateId, hasTemplate: !!templateId, hasImage: !!imageUrl },
             'Starting campaign'
         );
 
@@ -503,8 +504,7 @@ const startCampaign = asyncHandler(async (req, res) => {
         );
 
         // Start campaign processing in background (don't wait for it)
-        // This prevents timeout issues - user can check status with GET endpoint
-        processCampaign(campaignId, finalMessage, templateId, sessionName).catch(error => {
+        processCampaign(campaignId, finalMessage || '', templateId, sessionName, imageUrl).catch(error => {
             logger.error(
                 { campaignId, error: error.message },
                 'Background campaign processing failed'
@@ -512,16 +512,17 @@ const startCampaign = asyncHandler(async (req, res) => {
         });
 
         logger.info(
-            { campaignId, contactCount: campaign[0].count, templateId },
+            { campaignId, contactCount: campaign[0].count, templateId, hasImage: !!imageUrl },
             'Campaign processing started in background'
         );
 
         res.status(202).json({
             success: true,
-            message: templateId ? 'Campaign started with template' : 'Campaign started with message',
+            message: templateId ? 'Campaign started with template' : (imageUrl ? 'Campaign started with image' : 'Campaign started with message'),
             data: {
                 campaign_id: campaignId,
                 template_id: templateId || null,
+                image_url: imageUrl || null,
                 total_contacts: campaign[0].count,
                 status: 'running',
                 message: 'Campaign is processing in background. Check status with GET /api/campaign/{campaignId}/status',
@@ -536,6 +537,7 @@ const startCampaign = asyncHandler(async (req, res) => {
         throw error;
     }
 });
+
 
 const getCampaignProgressStatus = asyncHandler(async (req, res) => {
     const { campaignId } = req.params;

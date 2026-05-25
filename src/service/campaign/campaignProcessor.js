@@ -44,7 +44,7 @@ const getJitterDelay = (isWarmup = false) => {
 // Per-session send counters (reset on process restart — sufficient for anti-ban)
 const sessionSendCounters = {};
 
-const processCampaign = async (campaignId, messageTemplate, templateId = null, sessionName = null) => {
+const processCampaign = async (campaignId, messageTemplate, templateId = null, sessionName = null, imageUrl = null) => {
     const batchSize = parseInt(process.env.CAMPAIGN_BATCH_SIZE) || 1000;
     let processedCount = 0;
     let failedCount = 0;
@@ -52,7 +52,7 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null, s
 
     try {
         logger.info(
-            { campaignId, messageTemplate: messageTemplate.substring(0, 50), templateId, sessionName },
+            { campaignId, messageTemplate: messageTemplate?.substring(0, 50), templateId, sessionName, hasImage: !!imageUrl },
             'Starting campaign processing'
         );
 
@@ -209,7 +209,8 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null, s
                     const response = await sendMessage(
                         selectedChannel.name,
                         contact.phone_number,
-                        personalizedMessage
+                        personalizedMessage,
+                        imageUrl   // null if text-only campaign
                     );
                     
                     // ✅ FIX: Mark as 'sent' when WhatsApp accepts (message left our server)
@@ -224,7 +225,8 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null, s
                     await dbConnection.query(
                         `INSERT INTO message_logs (user_id, campaign_id, template_id, message_id, recipient_phone, delivery_status, message_content, send_time) 
                          VALUES(?, ?, ?, ?, ?, ?, ?, NOW())`,
-                        [contact.user_id, contact.campaign_id, templateId || null, response.key.id, contact.phone_number, 'sent', personalizedMessage]
+                        [contact.user_id, contact.campaign_id, templateId || null, response.key.id, contact.phone_number, 'sent',
+                         imageUrl ? `[IMAGE] ${personalizedMessage}` : personalizedMessage]
                     );
 
                     successCount++;

@@ -115,17 +115,21 @@ const startCampaignSchema = Joi.object({
         }),
         sessionName: Joi.string().optional().messages({
             'string.base': 'sessionName must be a string'
+        }),
+        imageUrl: Joi.string().uri().optional().messages({
+            'string.base': 'imageUrl must be a string',
+            'string.uri': 'imageUrl must be a valid URL (e.g. https://example.com/image.jpg)'
         })
     })
         .unknown(false)
         .required()
         .custom((value, helpers) => {
-            // Validate that either messageTemplate or templateId is provided
-            if (!value.messageTemplate && !value.templateId) {
+            // At least one of: messageTemplate, templateId, or imageUrl must be provided
+            if (!value.messageTemplate && !value.templateId && !value.imageUrl) {
                 return helpers.error('any.required');
             }
             return value;
-        }, 'either messageTemplate or templateId'),
+        }, 'either messageTemplate, templateId, or imageUrl'),
     params: Joi.object({
         campaignId: Joi.number().integer().required().messages({
             'number.base': 'campaignId must be a number',
@@ -134,6 +138,7 @@ const startCampaignSchema = Joi.object({
         })
     }).unknown(false).required()
 });
+
 
 const connectWhatsAppSchema = Joi.object({
     body: Joi.object({
