@@ -132,7 +132,7 @@ const addCampaignContact = asyncHandler(async (req, res) => {
         // VALIDATE USER EXISTS
         // =====================================================
 
-        const [userExists] = await connection.query(
+        let [userExists] = await connection.query(
             `
             SELECT id 
             FROM users 
@@ -142,19 +142,20 @@ const addCampaignContact = asyncHandler(async (req, res) => {
         );
 
         if (userExists.length === 0) {
-
-            throw new AppError(
-                `User ${user_id} not found`,
-                404,
-                'USER_NOT_FOUND'
+            logger.info({ userId: user_id }, 'User not found in Baileys DB, auto-creating...');
+            await connection.query(
+                `INSERT INTO users (id, username, email, password_hash, created_at, updated_at) 
+                 VALUES (?, ?, ?, 'dummy_hash_no_auth', NOW(), NOW())`,
+                [user_id, `user_${user_id}`, `user_${user_id}@notifynow.in`]
             );
+            userExists = [{ id: user_id }];
         }
 
         // =====================================================
-        // VALIDATE CAMPAIGN EXISTS
+        // VALIDATE CAMPAIGN EXISTS (OR AUTO-CREATE)
         // =====================================================
 
-        const [campaignExists] = await connection.query(
+        let [campaignExists] = await connection.query(
             `
             SELECT id, user_id
             FROM campaigns
@@ -164,12 +165,14 @@ const addCampaignContact = asyncHandler(async (req, res) => {
         );
 
         if (campaignExists.length === 0) {
-
-            throw new AppError(
-                `Campaign ${campaign_id} not found`,
-                404,
-                'CAMPAIGN_NOT_FOUND'
+            logger.info({ campaignId: campaign_id, userId: user_id }, 'Campaign not found in Baileys DB, auto-creating...');
+            await connection.query(
+                `INSERT INTO campaigns 
+                 (id, user_id, campaign_name, campaign_description, campaign_status, created_at, updated_at) 
+                 VALUES (?, ?, ?, 'Auto-created via API', 'draft', NOW(), NOW())`,
+                [campaign_id, user_id, `Campaign ${campaign_id}`]
             );
+            campaignExists = [{ id: campaign_id, user_id }];
         }
 
         // =====================================================
