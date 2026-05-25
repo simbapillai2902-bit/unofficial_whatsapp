@@ -1,5 +1,7 @@
+const fs = require('fs');
+const path = require('path');
 const dbConnection = require("../../config/dbConnection");
-const { getAllSessions } = require("../../config/whatsapp/sessionManager");
+const { getAllSessions, createSession } = require("../../config/whatsapp/sessionManager");
 const rotationService = require("../../config/whatsapp/rotationService");
 const sendMessage = require("../../config/whatsapp/sendMessageService");
 const PQueue = require('p-queue').default;
@@ -7,11 +9,11 @@ const { createLogger } = require("../../logger");
 
 const logger = createLogger('campaign-processor');
 
-// Queue with throttling - respects WhatsApp rate limits
 const messageQueue = new PQueue({
     concurrency: parseInt(process.env.CAMPAIGN_QUEUE_CONCURRENCY) || 5,
     interval: 60 * 1000, // 1 minute
-    intervalCap: parseInt(process.env.CAMPAIGN_RATE_LIMIT_PER_MINUTE) || 50
+    intervalCap: parseInt(process.env.CAMPAIGN_RATE_LIMIT_PER_MINUTE) || 50,
+    carryoverConcurrencyCount: true
 });
 
 const processCampaign = async (campaignId, messageTemplate, templateId = null) => {
@@ -43,13 +45,51 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null) =
             };
         }
 
-        const sessions = getAllSessions();
-        const activeChannels = sessions
+        let sessions = getAllSessions();
+        let activeChannels = sessions
             .filter(({ connected }) => connected)
             .map(({ name, id }) => ({
                 name,
                 id
             }));
+
+        // Lazy auto-reconnect if no active channels are loaded in memory
+        if (activeChannels.length === 0) {
+            logger.info({ campaignId }, 'No active channels in memory. Checking for saved sessions to auto-reconnect...');
+            try {
+                const sessionDirPath = path.join(process.cwd(), 'session');
+                if (fs.existsSync(sessionDirPath)) {
+                    const files = fs.readdirSync(sessionDirPath);
+                    const savedSessions = files.filter(file => {
+                        const fullPath = path.join(sessionDirPath, file);
+                        return fs.statSync(fullPath).isDirectory() && /^session\d+$/.test(file);
+                    });
+
+                    if (savedSessions.length > 0) {
+                        logger.info(`Found ${savedSessions.length} saved sessions. Waking them up...`);
+                        for (const sessionName of savedSessions) {
+                            createSession(sessionName).catch(err => {
+                                logger.error({ sessionName, error: err.message }, 'Failed to wake up session');
+                            });
+                        }
+                        
+                        // Wait 3 seconds for reconnection handshake
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        
+                        // Query active sessions again
+                        sessions = getAllSessions();
+                        activeChannels = sessions
+                            .filter(({ connected }) => connected)
+                            .map(({ name, id }) => ({
+                                name,
+                                id
+                            }));
+                    }
+                }
+            } catch (wakeErr) {
+                logger.warn({ error: wakeErr.message }, 'Error woke up saved sessions');
+            }
+        }
 
         if (activeChannels.length === 0) {
             logger.error({ campaignId }, 'No active WhatsApp sessions available');

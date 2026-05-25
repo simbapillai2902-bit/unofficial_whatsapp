@@ -2,7 +2,7 @@ require('dotenv').config();
 const app = require("./src/app.js");
 const config = require("./src/config/config.js");
 require("./src/config/dbConnection.js");
-const { startSessionCleanup, closeAllSessions } = require("./src/config/whatsapp/sessionManager");
+const { startSessionCleanup, closeAllSessions, loadSavedSessions } = require("./src/config/whatsapp/sessionManager");
 const { createLogger } = require("./src/logger.js");
 
 const logger = createLogger('server');
@@ -14,6 +14,9 @@ const startServer = async () => {
         // Start session cleanup
         startSessionCleanup();
         logger.info('Session cleanup started');
+
+        // Restore saved sessions on startup
+        loadSavedSessions();
 
         // Start server
         server = app.listen(config.PORT, () => {
@@ -74,4 +77,3 @@ const startServer = async () => {
 startServer();
 
 module.exports = server;
-

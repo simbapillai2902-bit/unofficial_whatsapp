@@ -520,6 +520,36 @@ const stopSessionCleanup = () => {
     }
 };
 
+const loadSavedSessions = async () => {
+    const fs = require('fs');
+    const path = require('path');
+    try {
+        const sessionDirPath = path.join(process.cwd(), 'session');
+        if (!fs.existsSync(sessionDirPath)) {
+            logger.info('Session directory does not exist yet.');
+            return;
+        }
+
+        const files = fs.readdirSync(sessionDirPath);
+        const sessionFolders = files.filter(file => {
+            const fullPath = path.join(sessionDirPath, file);
+            return fs.statSync(fullPath).isDirectory() && /^session\d+$/.test(file);
+        });
+
+        logger.info(`Found ${sessionFolders.length} saved sessions to restore on startup.`);
+        for (const sessionName of sessionFolders) {
+            logger.info({ sessionName }, 'Restoring saved WhatsApp session...');
+            createSession(sessionName).catch(err => {
+                logger.error({ sessionName, error: err.message }, 'Failed to restore session on startup');
+            });
+            // Sleep for 1 second between restores to prevent resource exhaustion
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+    } catch (err) {
+        logger.error({ error: err.message }, 'Error restoring saved sessions on startup');
+    }
+};
+
 const closeAllSessions = async () => {
     try {
         stopSessionCleanup();
@@ -541,5 +571,6 @@ module.exports = {
     deleteSession,
     startSessionCleanup,
     stopSessionCleanup,
-    closeAllSessions
+    closeAllSessions,
+    loadSavedSessions
 };
