@@ -29,9 +29,23 @@ dbConnection.getConnection()
     .then(conn => {
         logger.info('Database connection pool initialized successfully');
         conn.release();
+        
+        // Self-healing database migration: ensure campaigns table has webhook_url column
+        return dbConnection.query("SHOW COLUMNS FROM campaigns LIKE 'webhook_url'");
+    })
+    .then(([columns]) => {
+        if (columns && columns.length === 0) {
+            logger.info('📦 Migration: Adding webhook_url column to campaigns table...');
+            return dbConnection.query("ALTER TABLE campaigns ADD COLUMN webhook_url TEXT DEFAULT NULL");
+        }
+    })
+    .then(result => {
+        if (result) {
+            logger.info('✅ Migration: webhook_url column added successfully.');
+        }
     })
     .catch(err => {
-        logger.error({ error: err.message }, 'Failed to initialize database connection pool');
+        logger.error({ error: err.message }, 'Failed to initialize database connection pool or run migration');
         process.exit(1);
     });
 

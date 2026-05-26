@@ -457,7 +457,7 @@ const addCampaignContact = asyncHandler(async (req, res) => {
 });
 
 const startCampaign = asyncHandler(async (req, res) => {
-    const { messageTemplate, templateId, sessionName, imageUrl } = req.validatedData.body;
+    const { messageTemplate, templateId, sessionName, imageUrl, webhookUrl } = req.validatedData.body;
     const { campaignId } = req.validatedData.params;
 
     try {
@@ -483,7 +483,7 @@ const startCampaign = asyncHandler(async (req, res) => {
         }
 
         logger.info(
-            { campaignId, userId: req.user?.id, templateId, hasTemplate: !!templateId, hasImage: !!imageUrl },
+            { campaignId, userId: req.user?.id, templateId, hasTemplate: !!templateId, hasImage: !!imageUrl, webhookUrl },
             'Starting campaign'
         );
 
@@ -497,10 +497,10 @@ const startCampaign = asyncHandler(async (req, res) => {
             throw new AppError('No contacts for this campaign. Add contacts first using POST /api/campaign/add-contacts', 404, 'CAMPAIGN_002');
         }
 
-        // Update campaign status to in_progress
+        // Update campaign status to in_progress and save webhook_url
         await dbConnection.query(
-            `UPDATE campaigns SET campaign_status = 'in_progress' WHERE id = ?`,
-            [campaignId]
+            `UPDATE campaigns SET campaign_status = 'in_progress', webhook_url = ? WHERE id = ?`,
+            [webhookUrl || null, campaignId]
         );
 
         // Start campaign processing in background (don't wait for it)

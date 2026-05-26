@@ -119,6 +119,10 @@ const startCampaignSchema = Joi.object({
         imageUrl: Joi.string().uri().optional().messages({
             'string.base': 'imageUrl must be a string',
             'string.uri': 'imageUrl must be a valid URL (e.g. https://example.com/image.jpg)'
+        }),
+        webhookUrl: Joi.string().uri().optional().messages({
+            'string.base': 'webhookUrl must be a string',
+            'string.uri': 'webhookUrl must be a valid URL'
         })
     })
         .unknown(false)

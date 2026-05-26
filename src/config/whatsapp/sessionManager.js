@@ -25,6 +25,51 @@ const SESSION_TIMEOUT = parseInt(process.env.SESSION_TIMEOUT_MS) || 24 * 60 * 60
 const CLEANUP_INTERVAL = parseInt(process.env.SESSION_CLEANUP_INTERVAL_MS) || 60 * 60 * 1000;
 const MAX_SESSIONS = parseInt(process.env.MAX_ACTIVE_SESSIONS) || 100;
 
+const notifyWebhook = async (messageId, status, errorMsg = null) => {
+    try {
+        const [rows] = await dbConnection.query(
+            `SELECT c.id AS campaign_id, c.webhook_url, q.phone_number 
+             FROM campaign_queue q
+             JOIN campaigns c ON q.campaign_id = c.id
+             WHERE q.message_id = ?
+             LIMIT 1`,
+            [messageId]
+        );
+
+        if (rows.length > 0 && rows[0].webhook_url) {
+            const { campaign_id, webhook_url, phone_number } = rows[0];
+            const payload = {
+                campaign_id,
+                recipient: phone_number,
+                message_id: messageId,
+                status,
+                reason: errorMsg
+            };
+
+            logger.info(
+                { messageId, status, webhookUrl: webhook_url },
+                'Sending DLR webhook notification'
+            );
+
+            await fetch(webhook_url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(err => {
+                logger.error(
+                    { messageId, status, webhookUrl: webhook_url, error: err.message },
+                    'Fetch callback error'
+                );
+            });
+        }
+    } catch (err) {
+        logger.error(
+            { messageId, status, error: err.message },
+            'Failed to process webhook notification'
+        );
+    }
+};
+
 const createSession = async (sessionName) => {
 
     try {
@@ -298,6 +343,53 @@ const createSession = async (sessionName) => {
                         'Message status update received'
                     );
 
+                    // Failed (status 0)
+                    if (
+                        update.update?.status === 0
+                    ) {
+
+                        logger.info(
+                            {
+                                sessionName,
+                                messageId: update.key?.id
+                            },
+                            'Message failed'
+                        );
+
+                        if (update.key?.id) {
+                            (async () => {
+                                try {
+                                    // Update campaign_queue with failed status
+                                    await dbConnection.query(
+                                        `UPDATE campaign_queue 
+                                         SET queue_status = 'failed', failed_at = NOW(), error_message = 'Failed on WhatsApp gateway', updated_at = NOW() 
+                                         WHERE message_id = ?`,
+                                        [update.key.id]
+                                    );
+                                    
+                                    // Update message_logs
+                                    await dbConnection.query(
+                                        `UPDATE message_logs 
+                                         SET delivery_status = 'failed' 
+                                         WHERE message_id = ?`,
+                                        [update.key.id]
+                                    );
+
+                                    // Notify portal webhook
+                                    await notifyWebhook(update.key.id, 'failed', 'Failed on WhatsApp gateway');
+                                } catch (dbError) {
+                                    logger.error(
+                                        { 
+                                            messageId: update.key.id, 
+                                            error: dbError.message
+                                        },
+                                        'Failed to update fail status in database'
+                                    );
+                                }
+                            })();
+                        }
+                    }
+
                     // Delivered (status 3)
                     if (
                         update.update?.status === 3
@@ -337,6 +429,9 @@ const createSession = async (sessionName) => {
                                             'Message delivery status updated in database'
                                         );
                                     }
+
+                                    // Notify portal webhook
+                                    await notifyWebhook(update.key.id, 'delivered');
                                 } catch (dbError) {
                                     logger.error(
                                         { 
@@ -390,6 +485,9 @@ const createSession = async (sessionName) => {
                                             'Message read status updated in database'
                                         );
                                     }
+
+                                    // Notify portal webhook
+                                    await notifyWebhook(update.key.id, 'read');
                                 } catch (dbError) {
                                     logger.error(
                                         { 

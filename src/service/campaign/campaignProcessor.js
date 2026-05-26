@@ -268,6 +268,36 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null, s
                              WHERE id=?`,
                             [newRetryCount, error.message, contact.id]
                         );
+
+                        // Trigger webhook DLR notification for failure
+                        try {
+                            const [campRows] = await dbConnection.query(
+                                `SELECT webhook_url FROM campaigns WHERE id = ? LIMIT 1`,
+                                [campaignId]
+                            );
+                            const webhookUrl = campRows[0]?.webhook_url;
+                            if (webhookUrl) {
+                                const payload = {
+                                    campaign_id: campaignId,
+                                    recipient: contact.phone_number,
+                                    status: 'failed',
+                                    reason: error.message
+                                };
+                                logger.info(
+                                    { campaignId, recipient: contact.phone_number, webhookUrl },
+                                    'Sending failure DLR webhook notification'
+                                );
+                                fetch(webhookUrl, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(payload)
+                                }).catch(err => {
+                                    logger.error({ error: err.message }, 'Failed to dispatch failure webhook');
+                                });
+                            }
+                        } catch (webhookErr) {
+                            logger.error({ error: webhookErr.message }, 'Failed to query webhookUrl on campaign send failure');
+                        }
                     }
 
                     failedCount++;
