@@ -56,7 +56,7 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null, s
             'Starting campaign processing'
         );
 
-        // ✅ FIX: Fetch pending contacts FIRST, without updating status yet
+        // Fetch pending contacts first
         const [pendingContacts] = await dbConnection.query(
             `SELECT * FROM campaign_queue WHERE queue_status = 'pending' AND campaign_id = ? LIMIT ?`,
             [campaignId, batchSize]
@@ -72,6 +72,20 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null, s
                 failedCount: 0
             };
         }
+
+        // ✅ FIX: Bulk-mark ALL fetched contacts as 'in_progress' IMMEDIATELY
+        // so the DB accurately reflects queued-but-not-yet-sent contacts
+        // instead of leaving them as 'pending' while they wait in the in-memory p-queue.
+        const fetchedIds = pendingContacts.map(c => c.id);
+        const idPlaceholders = fetchedIds.map(() => '?').join(',');
+        await dbConnection.query(
+            `UPDATE campaign_queue SET queue_status = 'in_progress', updated_at = NOW() WHERE id IN (${idPlaceholders})`,
+            fetchedIds
+        );
+        logger.info(
+            { campaignId, count: fetchedIds.length },
+            'Bulk-marked fetched contacts as in_progress'
+        );
 
         let sessions = getAllSessions();
         let activeChannels = sessions
@@ -143,12 +157,7 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null, s
         const queuePromises = pendingContacts.map((contact) => {
             return messageQueue.add(async () => {
                 try {
-                    // ✅ FIX: Update to 'in_progress' JUST before sending
-                    await dbConnection.query(
-                        `UPDATE campaign_queue SET queue_status = 'in_progress' WHERE id = ?`,
-                        [contact.id]
-                    );
-
+                    // Status is already 'in_progress' (set in bulk before queue started)
                     const selectedChannel = await rotationService.getNextChannel(activeChannels);
                     if (!selectedChannel) {
                         throw new Error("Selected channel is not available");
@@ -244,7 +253,7 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null, s
                     const maxRetries = parseInt(process.env.CAMPAIGN_MAX_RETRIES) || 3;
 
                     if (newRetryCount < maxRetries) {
-                        // ✅ FIX: Reset to 'pending' for retry
+                        // Reset to 'pending' so it gets picked up in the next batch
                         await dbConnection.query(
                             `UPDATE campaign_queue 
                              SET queue_status='pending', retry_count=?, error_message=?, updated_at=NOW() 
