@@ -19,11 +19,17 @@ const processQueue = async (campaignId, messageTemplate) => {
 
         const sessions = getAllSessions();
 
-        const activeChannels = Object.keys(sessions).filter((key) => sessions[key].connected);
+        const activeChannels = sessions
+            .filter(s => s.connected)
+            .map(s => s.name);
+
+        const limitPerChannel = activeChannels.length > 0
+            ? Math.ceil(pendingContacts.length / activeChannels.length)
+            : 100;
 
         for (const contact of pendingContacts) {
             try {
-                const selectedChannel = await rotationService.getNextChannel(activeChannels);
+                const selectedChannel = await rotationService.getNextChannel(activeChannels, limitPerChannel);
 
                 const response = await sendMessage(selectedChannel, contact.mobile, messageTemplate)
 

@@ -154,12 +154,16 @@ const processCampaign = async (campaignId, messageTemplate, templateId = null, s
             throw new Error('No active WhatsApp sessions');
         }
 
+        const limitPerChannel = activeChannels.length > 0
+            ? Math.ceil(pendingContacts.length / activeChannels.length)
+            : 100;
+
         // Add each contact to queue
         const queuePromises = pendingContacts.map((contact) => {
             return messageQueue.add(async () => {
                 try {
                     // Status is already 'in_progress' (set in bulk before queue started)
-                    const selectedChannel = await rotationService.getNextChannel(activeChannels);
+                    const selectedChannel = await rotationService.getNextChannel(activeChannels, limitPerChannel);
                     if (!selectedChannel) {
                         throw new Error("Selected channel is not available");
                     }
