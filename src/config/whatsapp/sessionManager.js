@@ -15,6 +15,7 @@ const P = require("pino");
 const qrcode = require("qrcode");
 const { createLogger } = require("../../logger");
 const dbConnection = require('../dbConnection');
+const chatStore = require("./chatStore");
 
 const logger = createLogger('session-manager');
 
@@ -66,6 +67,55 @@ const notifyWebhook = async (messageId, status, errorMsg = null) => {
         logger.error(
             { messageId, status, error: err.message },
             'Failed to process webhook notification'
+        );
+    }
+};
+
+const notifyMessageWebhook = async (sessionName, msg) => {
+    const webhookUrl = process.env.GLOBAL_WEBHOOK_URL || process.env.INCOMING_WEBHOOK_URL;
+    if (!webhookUrl) {
+        logger.debug({ sessionName, messageId: msg.key?.id }, 'No GLOBAL_WEBHOOK_URL configured, skipping webhook forwarding');
+        return;
+    }
+
+    try {
+        const jid = msg.key?.remoteJid;
+        const cleanPhone = jid ? jid.split('@')[0] : '';
+        const text = chatStore.getMessageText(msg.message);
+
+        const payload = {
+            event: msg.key?.fromMe ? "message.outgoing" : "message.incoming",
+            sessionName,
+            phone: cleanPhone,
+            message: {
+                id: msg.key?.id,
+                fromMe: msg.key?.fromMe || false,
+                text: text,
+                timestamp: msg.messageTimestamp ? parseInt(msg.messageTimestamp) : Math.floor(Date.now() / 1000),
+                raw: msg
+            }
+        };
+
+        logger.info(
+            { sessionName, messageId: msg.key?.id, webhookUrl, event: payload.event },
+            'Sending message webhook notification'
+        );
+
+        const fetch = require('node-fetch');
+        await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).catch(err => {
+            logger.error(
+                { sessionName, messageId: msg.key?.id, webhookUrl, error: err.message },
+                'Message webhook delivery fetch error'
+            );
+        });
+    } catch (err) {
+        logger.error(
+            { sessionName, messageId: msg.key?.id, error: err.message },
+            'Failed to dispatch message webhook notification'
         );
     }
 };
@@ -515,6 +565,35 @@ const createSession = async (sessionName) => {
             }
         });
 
+        // Message upsert (incoming & outgoing messages)
+        sock.ev.on('messages.upsert', async (m) => {
+            try {
+                const { messages, type } = m;
+                logger.info(
+                    { sessionName, type, count: messages.length },
+                    'Message upsert event received'
+                );
+
+                for (const msg of messages) {
+                    // Ignore protocol messages, status broadcast, etc.
+                    if (!msg.message || msg.key?.remoteJid === 'status@broadcast') {
+                        continue;
+                    }
+
+                    // Save message to chat store
+                    chatStore.addMessage(sessionName, msg);
+
+                    // Send webhook notification
+                    await notifyMessageWebhook(sessionName, msg);
+                }
+            } catch (upsertError) {
+                logger.error(
+                    { sessionName, error: upsertError.message },
+                    'Message upsert event handling error'
+                );
+            }
+        });
+
         logger.info(
             { sessionName },
             'Session created'
@@ -574,6 +653,7 @@ const deleteSession = async (sessionName) => {
             await session[sessionName].sock.end();
         }
         delete session[sessionName];
+        chatStore.clearStoreFromMemory(sessionName);
         logger.info({ sessionName }, 'Session deleted');
     } catch (error) {
         logger.error({ error: error.message, sessionName }, 'Error deleting session');
@@ -662,6 +742,10 @@ const closeAllSessions = async () => {
     }
 };
 
+const getChatMessages = (sessionName, phone) => {
+    return chatStore.getChatsForPhone(sessionName, phone);
+};
+
 module.exports = {
     createSession,
     getSession,
@@ -670,5 +754,6 @@ module.exports = {
     startSessionCleanup,
     stopSessionCleanup,
     closeAllSessions,
-    loadSavedSessions
+    loadSavedSessions,
+    getChatMessages
 };

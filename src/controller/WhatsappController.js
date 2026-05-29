@@ -1,4 +1,5 @@
-const { createSession, getSession, getAllSessions, closeAllSessions, deleteSession } = require("../config/whatsapp/sessionManager");
+const { createSession, getSession, getAllSessions, closeAllSessions, deleteSession, getChatMessages } = require("../config/whatsapp/sessionManager");
+const dbConnection = require("../config/dbConnection");
 const { createLogger } = require("../logger");
 const { asyncHandler, AppError } = require("../errorMiddleware");
 
@@ -112,7 +113,6 @@ const logoutWhatsApp = asyncHandler(async (req, res) => {
         return res.status(200).json({
             success: true,
             message: 'Session logged out successfully',
-            sessionName
         });
     } catch (error) {
         logger.error(
@@ -123,4 +123,70 @@ const logoutWhatsApp = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { connectWhatsApp, getSessions, logoutWhatsApp };
+const getChats = asyncHandler(async (req, res) => {
+    const { sessionName, channelId, phone } = req.params;
+    
+    let targetSessionName = sessionName;
+    
+    // If channelId is provided, resolve sessionName from the database
+    if (channelId) {
+        try {
+            const [rows] = await dbConnection.query(
+                `SELECT session_name FROM whatsapp_configs WHERE id = ? LIMIT 1`,
+                [channelId]
+            );
+            if (rows.length === 0) {
+                return res.status(204).json({
+                    success: true,
+                    fetchedFromBaileys: false,
+                    message: `Channel ID ${channelId} not found in database`,
+                    messages: []
+                });
+            }
+            targetSessionName = rows[0].session_name;
+        } catch (dbErr) {
+            logger.error({ channelId, error: dbErr.message }, 'Failed to resolve session name from database');
+            return res.status(500).json({
+                success: false,
+                message: 'Database query failed',
+                error: dbErr.message
+            });
+        }
+    }
+
+    if (!targetSessionName) {
+        return res.status(400).json({
+            success: false,
+            message: 'Session name or channel ID is required'
+        });
+    }
+
+    const activeSession = getSession(targetSessionName);
+    const connected = activeSession?.connected || false;
+
+    try {
+        const messages = getChatMessages(targetSessionName, phone);
+        
+        logger.info(
+            { sessionName: targetSessionName, phone, count: messages.length, connected },
+            'Retrieved chat messages'
+        );
+
+        return res.status(200).json({
+            success: true,
+            fetchedFromBaileys: true,
+            sessionName: targetSessionName,
+            phone,
+            connected,
+            messages
+        });
+    } catch (error) {
+        logger.error(
+            { error: error.message, sessionName: targetSessionName, phone },
+            'Failed to get chat messages'
+        );
+        throw error;
+    }
+});
+
+module.exports = { connectWhatsApp, getSessions, logoutWhatsApp, getChats };

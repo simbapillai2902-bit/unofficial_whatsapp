@@ -17,4 +17,7 @@ router.post(
     WhatsappController.logoutWhatsApp
 );
 
+router.get('/session/:sessionName/chats/:phone', WhatsappController.getChats);
+router.get('/channels/:channelId/chats/:phone', WhatsappController.getChats);
+
 module.exports = router;
