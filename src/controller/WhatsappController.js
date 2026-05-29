@@ -188,7 +188,42 @@ const getChats = asyncHandler(async (req, res) => {
     const connected = activeSession?.connected || false;
 
     try {
-        const messages = getChatMessages(targetSessionName, phone);
+        let messages = getChatMessages(targetSessionName, phone);
+        
+        // If user wants to fetch older messages from WhatsApp and session is connected
+        const { fetchOlder } = req.query;
+        if (fetchOlder === 'true' && connected && activeSession?.sock && messages.length > 0) {
+            // Find the oldest message to use as anchor
+            const sorted = [...messages].sort((a, b) => a.timestamp - b.timestamp);
+            const oldest = sorted[0];
+            
+            if (oldest && oldest.raw && oldest.raw.key) {
+                try {
+                    logger.info(
+                        { sessionName: targetSessionName, phone, oldestMsgId: oldest.id },
+                        'Requesting older chat history from WhatsApp'
+                    );
+                    
+                    // Request 50 older messages from WhatsApp servers
+                    await activeSession.sock.fetchMessageHistory(
+                        50,
+                        oldest.raw.key,
+                        oldest.raw.messageTimestamp || oldest.timestamp
+                    );
+                    
+                    // Wait 3 seconds for messaging-history.set event to trigger and write to JSON file
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    
+                    // Reload updated messages from the local store
+                    messages = getChatMessages(targetSessionName, phone);
+                } catch (fetchErr) {
+                    logger.error(
+                        { sessionName: targetSessionName, phone, error: fetchErr.message },
+                        'Failed to request older chat history'
+                    );
+                }
+            }
+        }
         
         logger.info(
             { sessionName: targetSessionName, phone, count: messages.length, connected },
