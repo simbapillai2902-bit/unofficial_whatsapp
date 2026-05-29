@@ -90,6 +90,8 @@ const addMessage = (sessionName, msg) => {
         const cleanMsg = {
             id: msg.key.id,
             fromMe: msg.key.fromMe || false,
+            type: msg.key.fromMe ? 'outgoing' : 'incoming',
+            sender: msg.key.fromMe ? 'me' : (msg.key.participant || msg.key.remoteJid || '').split('@')[0],
             text: text,
             timestamp: msg.messageTimestamp ? parseInt(msg.messageTimestamp) : Math.floor(Date.now() / 1000),
             raw: msg
@@ -115,9 +117,21 @@ const getChatsForPhone = (sessionName, phone) => {
     const jid = `${cleanPhone}@s.whatsapp.net`;
     const groupJid = `${cleanPhone}@g.us`;
     
-    // Check both private chat JID and group chat JID just in case
     const messages = store[jid] || store[groupJid] || [];
-    return messages;
+    
+    // Ensure all messages have explicit type and sender fields for UI rendering
+    return messages.map(msg => {
+        const fromMe = msg.fromMe || false;
+        return {
+            id: msg.id,
+            fromMe: fromMe,
+            type: msg.type || (fromMe ? 'outgoing' : 'incoming'),
+            sender: msg.sender || (fromMe ? 'me' : (msg.raw?.key?.participant || msg.raw?.key?.remoteJid || '').split('@')[0] || cleanPhone),
+            text: msg.text,
+            timestamp: msg.timestamp,
+            raw: msg.raw || msg
+        };
+    });
 };
 
 // Clean up memory store when session is deleted
