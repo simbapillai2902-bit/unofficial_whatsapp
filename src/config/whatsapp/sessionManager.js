@@ -160,7 +160,8 @@ const createSession = async (sessionName) => {
         const {
             default: makeWASocket,
             useMultiFileAuthState,
-            DisconnectReason
+            DisconnectReason,
+            Browsers
         } = await getBaileys();
 
         const { state, saveCreds } =
@@ -168,7 +169,9 @@ const createSession = async (sessionName) => {
 
         const sock = makeWASocket({
             auth: state,
-            logger: P({ level: 'silent' })
+            logger: P({ level: 'silent' }),
+            browser: Browsers.macOS('Desktop'),
+            syncFullHistory: true
         });
 
         // Store session
