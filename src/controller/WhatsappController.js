@@ -135,22 +135,45 @@ const getChats = asyncHandler(async (req, res) => {
                 `SELECT session_name FROM whatsapp_configs WHERE id = ? LIMIT 1`,
                 [channelId]
             );
-            if (rows.length === 0) {
-                return res.status(204).json({
-                    success: true,
-                    fetchedFromBaileys: false,
-                    message: `Channel ID ${channelId} not found in database`,
-                    messages: []
+            if (rows.length > 0) {
+                targetSessionName = rows[0].session_name;
+            } else {
+                // Fallback to checking session${channelId} folder
+                const fs = require('fs');
+                const path = require('path');
+                const fallbackSessionName = `session${channelId}`;
+                const folderExists = fs.existsSync(path.join(process.cwd(), 'session', fallbackSessionName));
+                
+                if (folderExists || getSession(fallbackSessionName)) {
+                    targetSessionName = fallbackSessionName;
+                    logger.info({ channelId, fallbackSessionName }, 'Channel ID not found in database, fell back to session folder name');
+                } else {
+                    return res.status(404).json({
+                        success: false,
+                        fetchedFromBaileys: false,
+                        message: `Channel ID ${channelId} not found in database and no folder/active session found for ${fallbackSessionName}`,
+                        messages: []
+                    });
+                }
+            }
+        } catch (dbErr) {
+            logger.error({ channelId, error: dbErr.message }, 'Failed to resolve session name from database, attempting fallback');
+            
+            // Database query failed, try fallback anyway
+            const fs = require('fs');
+            const path = require('path');
+            const fallbackSessionName = `session${channelId}`;
+            const folderExists = fs.existsSync(path.join(process.cwd(), 'session', fallbackSessionName));
+            
+            if (folderExists || getSession(fallbackSessionName)) {
+                targetSessionName = fallbackSessionName;
+            } else {
+                return res.status(500).json({
+                    success: false,
+                    message: 'Database query failed and no fallback session found',
+                    error: dbErr.message
                 });
             }
-            targetSessionName = rows[0].session_name;
-        } catch (dbErr) {
-            logger.error({ channelId, error: dbErr.message }, 'Failed to resolve session name from database');
-            return res.status(500).json({
-                success: false,
-                message: 'Database query failed',
-                error: dbErr.message
-            });
         }
     }
 

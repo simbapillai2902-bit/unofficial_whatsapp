@@ -594,6 +594,31 @@ const createSession = async (sessionName) => {
             }
         });
 
+        // Messaging history set (initial sync of chats/messages when session connects)
+        sock.ev.on('messaging-history.set', async ({ chats, contacts, messages, isLatest }) => {
+            try {
+                logger.info(
+                    { sessionName, messageCount: messages?.length },
+                    'Messaging history set event received'
+                );
+
+                if (messages && messages.length > 0) {
+                    for (const msg of messages) {
+                        if (!msg.message || msg.key?.remoteJid === 'status@broadcast') {
+                            continue;
+                        }
+                        // Save message to chat store
+                        chatStore.addMessage(sessionName, msg);
+                    }
+                }
+            } catch (historyError) {
+                logger.error(
+                    { sessionName, error: historyError.message },
+                    'Messaging history set event handling error'
+                );
+            }
+        });
+
         logger.info(
             { sessionName },
             'Session created'
