@@ -52,6 +52,7 @@ const notifyWebhook = async (messageId, status, errorMsg = null) => {
                 'Sending DLR webhook notification'
             );
 
+            const fetch = require('node-fetch');
             await fetch(webhook_url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
