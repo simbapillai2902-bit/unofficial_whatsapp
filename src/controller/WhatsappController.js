@@ -14,9 +14,11 @@ const connectWhatsApp = asyncHandler(async (req, res) => {
         if (existingSession?.connected) {
             return res.status(200).json({
                 success: true,
-                message: 'Session already connected',
                 sessionName,
-                connected: true
+                qr: existingSession.qr || null,
+                pairingCode: existingSession.pairingCode || null,
+                connected: true,
+                message: 'Session already connected'
             });
         }
 
