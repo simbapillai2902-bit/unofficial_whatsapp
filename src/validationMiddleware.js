@@ -155,6 +155,12 @@ const connectWhatsAppSchema = Joi.object({
                 'string.pattern.base':
                     'Session name must be like session1, session2, session10',
                 'any.required': 'Session name is required'
+            }),
+        phoneNumber: Joi.string()
+            .pattern(/^\+?[0-9\s\-()]{10,20}$/)
+            .optional()
+            .messages({
+                'string.pattern.base': 'Phone number must be a valid phone number'
             })
     })
         .unknown(false)

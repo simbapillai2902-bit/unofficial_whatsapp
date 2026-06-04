@@ -121,7 +121,7 @@ const notifyMessageWebhook = async (sessionName, msg) => {
     }
 };
 
-const createSession = async (sessionName) => {
+const createSession = async (sessionName, phoneNumber = null) => {
 
     try {
 
@@ -165,13 +165,28 @@ const createSession = async (sessionName) => {
             Browsers
         } = await getBaileys();
 
+        // If phone number is provided, ensure we start from a clean auth state by deleting the old session folder
+        if (phoneNumber) {
+            const fs = require('fs');
+            const path = require('path');
+            const sessionPath = path.join(process.cwd(), 'session', sessionName);
+            if (fs.existsSync(sessionPath)) {
+                try {
+                    fs.rmSync(sessionPath, { recursive: true, force: true });
+                    logger.info({ sessionName }, 'Cleared old session folder for fresh pairing code request');
+                } catch (e) {
+                    logger.error({ sessionName, error: e.message }, 'Failed to clear old session folder');
+                }
+            }
+        }
+
         const { state, saveCreds } =
             await useMultiFileAuthState(`session/${sessionName}`);
 
         const sock = makeWASocket({
             auth: state,
             logger: P({ level: 'silent' }),
-            browser: Browsers.macOS('Desktop'),
+            browser: ['Ubuntu', 'Chrome', '20.0.04'],
             syncFullHistory: true
         });
 
@@ -183,6 +198,7 @@ const createSession = async (sessionName) => {
             connected: false,
             reconnecting: false,
             qr: null,
+            pairingCode: null,
             createdAt: Date.now(),
             lastActivity: Date.now(),
             messageCount: 0,
@@ -192,6 +208,23 @@ const createSession = async (sessionName) => {
 
         // Save creds
         sock.ev.on('creds.update', saveCreds);
+
+        // If phone number is provided and credentials are not registered, request pairing code
+        if (phoneNumber && !sock.authState.creds.registered) {
+            const cleanPhone = phoneNumber.replace(/\D/g, '');
+            setTimeout(async () => {
+                try {
+                    logger.info({ sessionName, cleanPhone }, 'Requesting pairing code from WhatsApp');
+                    const code = await sock.requestPairingCode(cleanPhone);
+                    if (session[sessionName]) {
+                        session[sessionName].pairingCode = code;
+                        logger.info({ sessionName, cleanPhone, code }, 'Pairing code generated successfully');
+                    }
+                } catch (err) {
+                    logger.error({ sessionName, cleanPhone, error: err.message }, 'Failed to request pairing code');
+                }
+            }, 1500);
+        }
 
         // Connection updates
         sock.ev.on('connection.update', async (update) => {
@@ -672,7 +705,8 @@ const getAllSessions = () => {
         connected: session[key].connected,
         createdAt: session[key].createdAt,
         lastActivity: session[key].lastActivity,
-        qr: session[key].qr ? true : false
+        qr: session[key].qr ? true : false,
+        pairingCode: session[key].pairingCode || null
     }));
 };
 

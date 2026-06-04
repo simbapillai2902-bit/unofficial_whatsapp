@@ -6,7 +6,7 @@ const { asyncHandler, AppError } = require("../errorMiddleware");
 const logger = createLogger('whatsapp-controller');
 
 const connectWhatsApp = asyncHandler(async (req, res) => {
-    const { sessionName } = req.validatedData.body;
+    const { sessionName, phoneNumber } = req.validatedData.body;
 
     try {
         // Check if session already exists
@@ -21,40 +21,71 @@ const connectWhatsApp = asyncHandler(async (req, res) => {
         }
 
         // Create new session
-        const session = await createSession(sessionName);
+        const session = await createSession(sessionName, phoneNumber);
 
         if (!session) {
             throw new AppError('Failed to create session', 500, 'SESSION_001');
         }
 
-        // Wait for QR code generation (max 5 seconds)
-        let qrReady = false;
-        let retries = 0;
-        const maxRetries = 50; // 5 seconds with 100ms intervals
+        if (phoneNumber) {
+            // Wait for pairing code generation (max 10 seconds)
+            let pairingCodeReady = false;
+            let retries = 0;
+            const maxRetries = 100; // 10 seconds total
 
-        while (!qrReady && retries < maxRetries) {
-            if (getSession(sessionName)?.qr) {
-                qrReady = true;
-                break;
+            while (!pairingCodeReady && retries < maxRetries) {
+                if (getSession(sessionName)?.pairingCode) {
+                    pairingCodeReady = true;
+                    break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 100));
+                retries++;
             }
-            await new Promise(resolve => setTimeout(resolve, 100));
-            retries++;
+
+            const currentSession = getSession(sessionName);
+
+            logger.info(
+                { sessionName, phoneNumber, pairingCodeReady, userId: req.user?.id },
+                'Session pairing code request completed'
+            );
+
+            return res.status(200).json({
+                success: true,
+                sessionName,
+                pairingCode: currentSession?.pairingCode || null,
+                connected: currentSession?.connected || false,
+                message: pairingCodeReady ? 'Enter the pairing code on your WhatsApp' : 'Pairing code generation in progress'
+            });
+        } else {
+            // Wait for QR code generation (max 5 seconds)
+            let qrReady = false;
+            let retries = 0;
+            const maxRetries = 50; // 5 seconds with 100ms intervals
+
+            while (!qrReady && retries < maxRetries) {
+                if (getSession(sessionName)?.qr) {
+                    qrReady = true;
+                    break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 100));
+                retries++;
+            }
+
+            const currentSession = getSession(sessionName);
+
+            logger.info(
+                { sessionName, qrReady, userId: req.user?.id },
+                'Session connection initiated'
+            );
+
+            return res.status(200).json({
+                success: true,
+                sessionName,
+                qr: currentSession?.qr || null,
+                connected: currentSession?.connected || false,
+                message: qrReady ? 'Scan the QR code' : 'QR code generation in progress'
+            });
         }
-
-        const currentSession = getSession(sessionName);
-
-        logger.info(
-            { sessionName, qrReady, userId: req.user?.id },
-            'Session connection initiated'
-        );
-
-        return res.status(200).json({
-            success: true,
-            sessionName,
-            qr: currentSession?.qr || null,
-            connected: currentSession?.connected,
-            message: qrReady ? 'Scan the QR code' : 'QR code generation in progress'
-        });
     } catch (error) {
         logger.error(
             { error: error.message, sessionName, userId: req.user?.id },
